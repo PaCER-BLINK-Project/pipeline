@@ -1,0 +1,130 @@
+#!/bin/bash
+
+#SBATCH --account=director2183
+#SBATCH --time=23:59:00
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=120gb
+#SBATCH --output=./image_mwa_obsid1276619416_ch133.o%j
+#SBATCH --error=./image_mwa_obsid1276619416_ch133.e%j
+#SBATCH --export=NONE
+
+# /home/msok/Desktop/PAWSEY/PaCER/logbook/20230908_testing_BLINK_PIPELINE_cable_and_geom_correction_applycal.odt
+# see /media/msok/80f59a5b-8bba-4392-8b31-a4f02fbee2f1/mwa/vcs/1276619416/1276619416_new/cotter/cotter_only_geomandcablecorr_applycal/BLINK_PIPELINE
+
+n_channels=768
+start_coarse_channel=133
+fine_bw=0.04
+n_channels=768
+
+if [[ $PAWSEY_CLUSTER = "setonix" ]]; then
+   module reset 
+   module use /software/projects/director2183/msok/setonix/2023.08/modules/zen3/gcc/12.2.0/ /software/projects/director2183/setonix/2023.08/modules/zen3/gcc/12.2.0 /software/setonix/2023.08/modules/zen3/gcc/12.2.0/libraries
+   module load msfitslib/devel   
+   module use /software/projects/director2183/msok/setonix/2023.08/modules/zen3/gcc/12.2.0/ /software/projects/director2183/setonix/2023.08/modules/zen3/gcc/12.2.0
+   module load blink-pipeline/main blink_test_data/devel
+else
+   if [[ -n $module_path ]]; then
+      module purge
+      module load gcc/8.3.0 cascadelake blink_test_data/devel blink-correlator/devel-cmplx blink-imager/cristian-dev
+   else
+      echo "INFO : non-HPC environment -> modules ignored"
+   fi
+fi
+# salloc --partition gpuq --time 1:00:00 --nodes=1
+
+datapath=/scratch/mwavcs/msok/1276619416/combined/
+if [[ -n "$1" && "$1" != "-" ]]; then
+   datapath="$1"
+fi
+
+start_coarse_channel=133
+if [[ -n "$2" && "$2" != "-" ]]; then
+   start_coarse_channel=$2
+fi
+
+cotter_compatible=0
+if [[ -n "$3" && "$3" != "-" ]]; then
+   cotter_compatible=$3
+fi
+
+if [[ -n "$4" && "$4" != "-" ]]; then
+   n_channels=$4
+fi
+
+echo "###########################################"
+echo "PARAMETERS:"
+echo "###########################################"
+echo "datapath = $datapath"
+echo "start_coarse_channel = $start_coarse_channel"
+echo "cotter_compatible = $cotter_compatible"
+echo "n_channels = $n_channels"
+echo "###########################################"
+
+
+if [[ ! -s 20200619163000.metafits ]]; then
+   echo "cp $BLINK_TEST_DATADIR/mwa/1276619416/20200619163000.metafits ."
+   cp $BLINK_TEST_DATADIR/mwa/1276619416/20200619163000.metafits .
+else
+   echo "INFO : file 20200619163000.metafits already exists"
+fi   
+
+# if [[ ! -s calsolutions_chan0_xx.txt ]]; then
+#   echo "cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan0_xx.txt ."
+#   cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan0_xx.txt .
+#else
+#   echo "INFO : file calsolutions_chan0_xx.txt already exists"
+#fi
+
+# cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan???_xx.txt .
+# cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan???_yy.txt .
+
+# No averaging for the start:
+echo "------------------------------------------"
+ch=0
+while [[ $ch -lt $n_channels ]]; 
+do
+   ch_str=`echo $ch | awk '{printf("%03d\n",$1);}'`
+   coarse_channel=`echo $ch | awk -v cc=${start_coarse_channel} '{printf("%d\n",cc+($1/32));}'`
+   fine_channel_to_image=`echo $ch | awk -v cc=${start_coarse_channel} '{printf("%d\n",($1 % 32));}'`
+
+   if [[ -d ch${ch_str} ]]; then   
+      echo "INFO : directory ch${ch_str} already exists -> skipped"
+   else   
+      echo "Processing fine_channel = $ch -> coarse_channel = $coarse_channel -> fine channel to image = $fine_channel_to_image"
+      # WARNING to make it the same as cotter :
+      # cotter must have options : -norfi -nosbgains -sbpassband /media/msok/5508b34c-040a-4dce-a8ff-2c4510a5d1a3/mwa/data/1276619416/cotter_laptop/no_cable/subband-passband-32ch-unitary.txt
+      # and freq_mhz has to be calculated without part 0.04/2.00
+      if [[ $cotter_compatible -gt 0 ]]; then
+         freq_mhz=`echo $ch | awk -v start_coarse_channel=${start_coarse_channel} -v fine_bw=${fine_bw} '{freq_mhz=start_coarse_channel*1.28-0.64+fine_bw*$1;printf("%.4f\n",freq_mhz);}'`
+      else
+         freq_mhz=`echo $ch | awk -v start_coarse_channel=${start_coarse_channel} -v fine_bw=${fine_bw} '{freq_mhz=start_coarse_channel*1.28-0.64+fine_bw/2.00+fine_bw*$1;printf("%.4f\n",freq_mhz);}'`
+      fi
+   
+      echo "ln -sf ${datapath}/1276619416_1276619418_ch${coarse_channel}.dat"
+      ln -sf ${datapath}/1276619416_1276619418_ch${coarse_channel}.dat
+
+
+      mkdir -p ch${ch_str}/ 
+      echo "Imaging channel = $ch ($ch_str)"
+      echo "blink_pipeline -c 4 -C $fine_channel_to_image -t 1.00s -o ch${ch_str}/ -n 8192 -f ${freq_mhz} -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s calsolutions_chan${ch_str}_xx.txt -r -V 100 1276619416_1276619418_ch${coarse_channel}.dat > ch${ch_str}/out 2>&1"
+      blink_pipeline -c 4 -C $fine_channel_to_image -t 1.00s -o ch${ch_str}/ -n 8192 -f ${freq_mhz} -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s calsolutions_chan${ch_str}_xx.txt -r -V 100 1276619416_1276619418_ch${coarse_channel}.dat > ch${ch_str}/out 2>&1
+
+      # moving test correlation matrix file to specific channel subdirectory:   
+      mv ??.fits ch${ch_str}/
+      mv *test_vis_??.fits ch${ch_str}/
+      mv xcorr_??.fits ch${ch_str}/
+   fi
+
+   ch=$(($ch+1))
+done
+
+echo "Create average image"
+module load msfitslib/devel
+ls ch???/test_image_time000000_ch?????_real.fits > fits_list_all
+echo "avg_images fits_list_all avg_all.fits rms_all.fits -r 10000000.00"
+avg_images fits_list_all avg_all.fits rms_all.fits -r 10000000.00
+   
+echo "------------------------------------------"
+

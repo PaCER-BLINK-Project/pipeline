@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# /home/msok/Desktop/PAWSEY/PaCER/logbook/20230908_testing_BLINK_PIPELINE_cable_and_geom_correction.odt
+# see /media/msok/80f59a5b-8bba-4392-8b31-a4f02fbee2f1/mwa/vcs/1276619416/1276619416_new/cotter/cotter_only_geomandcablecorr/BLINK_PIPELINE
+
+module_path=`which module`
+
+if [[ $PAWSEY_CLUSTER = "setonix" ]]; then
+   module reset
+#   module load blink_test_data/devel  blink_astroio/master  blink_correlator/master blink-imager-gpu/devel blink_preprocessing/master msfitslib/master-teyn2f7
+   module load blink_test_data/devel  blink_astroio/master  blink_correlator/master blink-imager-gpu/devel blink_preprocessing/main rocm/5.4.3
+else
+   if [[ -n $module_path ]]; then
+      module purge
+      module load gcc/8.3.0 cascadelake blink_test_data/devel blink-correlator/devel-cmplx blink-imager/cristian-dev
+   else
+      echo "INFO : non-HPC environment -> modules ignored"
+   fi
+fi
+# salloc --partition gpuq --time 1:00:00 --nodes=1
+
+echo "ln -sf $BLINK_TEST_DATADIR/mwa/1276619416/voltages/1276619416_1276619418_ch133.dat"
+ln -sf $BLINK_TEST_DATADIR/mwa/1276619416/voltages/1276619416_1276619418_ch133.dat
+
+if [[ ! -s 20200619163000.metafits ]]; then
+   echo "cp $BLINK_TEST_DATADIR/mwa/1276619416/20200619163000.metafits ."
+   cp $BLINK_TEST_DATADIR/mwa/1276619416/20200619163000.metafits .
+else
+   echo "INFO : file 20200619163000.metafits already exists"
+fi   
+
+echo "-------------------------------------------------"
+echo "./blink_pipeline -c 4 -C 0 -t 1.00s -o cablegeocorr_only/ -n 2048 -f 169.60 -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -r 1276619416_1276619418_ch133.dat"
+./blink_pipeline -c 4 -C 0 -t 1.00s -o cablegeocorr_only/ -n 2048 -f 169.60 -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -r 1276619416_1276619418_ch133.dat 
+echo "-------------------------------------------------"
+
+max_diff=0.001 # 0.4/0.3 to compare with cotter files 1276619416_20200619163000_vis_real_channel000_time000000_pol0.fits
+               # 2023-09-18 - increased the max limit from 0.000 to 0.001 as there are some small numberical differences on Setonix 
+echo "calcfits_bg vis_re_cable_corr.fits = $BLINK_TEST_DATADIR/mwa/1276619416/results/cablegeocorr/vis_re_cable_corr.fits -p ${max_diff} -p ${max_diff}"
+calcfits_bg vis_re_cable_corr.fits = $BLINK_TEST_DATADIR/mwa/1276619416/results/cablegeocorr/vis_re_cable_corr.fits -p ${max_diff} -p ${max_diff}
+# repeat to get exit code :
+exit_code=0
+equal=`calcfits_bg vis_re_cable_corr.fits = $BLINK_TEST_DATADIR/mwa/1276619416/results/cablegeocorr/vis_re_cable_corr.fits -p ${max_diff} -p ${max_diff} | grep "Images are EQUAL" | wc -l`
+if [[ $equal -le 0 ]]; then
+   exit_code=1
+fi
+
+
+echo "calcfits_bg vis_im_cable_corr.fits = $BLINK_TEST_DATADIR/mwa/1276619416/results/cablegeocorr/vis_im_cable_corr.fits -p ${max_diff} -p ${max_diff}"
+calcfits_bg vis_im_cable_corr.fits = $BLINK_TEST_DATADIR/mwa/1276619416/results/cablegeocorr/vis_im_cable_corr.fits -p ${max_diff} -p ${max_diff}
+# repeat to get exit code :
+exit_code=0
+equal=`calcfits_bg vis_im_cable_corr.fits = $BLINK_TEST_DATADIR/mwa/1276619416/results/cablegeocorr/vis_im_cable_corr.fits -p ${max_diff} -p ${max_diff} | grep "Images are EQUAL" | wc -l`
+if [[ $equal -le 0 ]]; then
+   exit_code=1
+fi
+
+me=$(basename "$0")
+echo "Exiting script $me with exit code = $exit_code"
+exit $exit_code
+
