@@ -204,19 +204,26 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
                
                char szOutDir[64];
                sprintf(szOutDir,"%s/%d/%03d", output_dir.c_str(), obsInfo.coarseChannel, (frequency+start_fine_channel));
-               imager.m_ImagerParameters.m_szOutputDirectory = szOutDir;               
+               imager.m_ImagerParameters.m_szOutputDirectory = szOutDir;
+               if(calibrate_in_imager){
+                  char szChannelSolutionFile[1024];
+                  // use calibration_solutions_file.c_str() as a basename and add channel 
+                  sprintf(szChannelSolutionFile,"%s_chan%03d_xx.txt",calibration_solutions_file.c_str(),(obsInfo.coarse_channel_index * xcorr.nFrequencies + frequency+start_fine_channel)); // WARNING : this is test version hence XX hardcoded (needs to be for both XX and YY)
+                  std::cout << "Using solution file " << szChannelSolutionFile << std::endl;
+                  imager.UpdateCalSolFile( szChannelSolutionFile );
+               }         
             }
          
             //----------------------------------------------------------------
             // MS : 20230914 - temporary test code:
-            CBgFits vis_re(128,128),vis_im(128,128);
-            char szOutPutFits[1024];
-            ConvertXCorr2Fits( xcorr, vis_re, vis_im, integrationInterval, frequency, imager.m_ImagerParameters.m_szOutputDirectory.c_str() );
-            sprintf(szOutPutFits,"%s/re.fits",imager.m_ImagerParameters.m_szOutputDirectory.c_str());
-            vis_re.WriteFits( szOutPutFits );
-            sprintf(szOutPutFits,"%s/im.fits",imager.m_ImagerParameters.m_szOutputDirectory.c_str());
-            vis_im.WriteFits( szOutPutFits );
-            //----- end of temporary test code
+            // CBgFits vis_re(128,128),vis_im(128,128);
+            // char szOutPutFits[1024];
+            // ConvertXCorr2Fits( xcorr, vis_re, vis_im, integrationInterval, frequency, imager.m_ImagerParameters.m_szOutputDirectory.c_str() );
+            // sprintf(szOutPutFits,"%s/re.fits",imager.m_ImagerParameters.m_szOutputDirectory.c_str());
+            // vis_re.WriteFits( szOutPutFits );
+            // sprintf(szOutPutFits,"%s/im.fits",imager.m_ImagerParameters.m_szOutputDirectory.c_str());
+            // vis_im.WriteFits( szOutPutFits );
+            // //----- end of temporary test code
 
             printf("DEBUG : starting imager using xcorr structure ( frequency = %d , frequencyMHz = %.6f [MHz] -> channel frequency = %.6f [MHz] )\n",frequency,frequencyMHz,channel_frequency_MHz);
             char szOutImage[64];
