@@ -13,6 +13,7 @@
 #include <mapping.hpp> // to apply cotter mapping
 #include <pacer_imager_defs.h>
 #include "pipeline.hpp"
+#include "files.hpp"
 
 // MS : 20230914 - temporary test code:
 // TODO : remove this function in the future use complex<double> 
@@ -73,7 +74,7 @@ void ConvertXCorr2Fits(Visibilities& xcorr, CBgFits& vis_re, CBgFits& vis_im, in
 
 
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
-    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime, bool b_calibrate_in_imager, vector<int>& flagged_antennas  ){
+    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime, bool b_calibrate_in_imager, vector<int>& flagged_antennas, std::string& output_dir){
 
     // set imager parameters according to options :    
     // no if here - assuming always true :
@@ -93,6 +94,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->frequencyMHz = frequencyMHz;
     this->FOV_degrees = FOV_degrees;
     this->reorder = reorder;
+    this->output_dir = output_dir;
     imager.m_ImagerParameters.SetGlobalParameters(szAntennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
     imager.m_ImagerParameters.m_szOutputDirectory = outputDir.c_str();
     imager.m_ImagerParameters.m_fCenterFrequencyMHz = frequencyMHz;
@@ -172,7 +174,6 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
 
    // TODO : keep the loop so that it change be parallelised using OpenMP
    // xcorr.nFrequencies = 1;
-   std::string szTemplateOutputDirectory = imager.m_ImagerParameters.m_szOutputDirectory.c_str(); // keeping this as a template as this may change if mutliple channels are processed in the loop
    printf("DEBUG : imaging %d intervals and %d frequency channels\n",int(xcorr.integration_intervals()),xcorr.nFrequencies);
    int start_fine_channel = 0;
    if( freq_channel < -1 ){
@@ -185,6 +186,7 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
             // if freq_channel is specified (processing of a single channel) -> use frequencyMHz as the center frequency of this channel
             // otherwise, calculate frequency assuming frequencyMHz is the start frequency of the entire band:
             // I am including cotter-compatibility option here to be able to compare with standard SMART pipeline processing:
+            double coarse_channel_central_freq_MHz = obsInfo.coarseChannel * 1.28;
             double channel_frequency_MHz = frequencyMHz;
             if( freq_channel < 0 ){ // processing of all channels requires re-calculation of frequency :
                bool cotter_compatible=true;
@@ -194,17 +196,14 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
                   // frequencyMHz is assumed to be center frequency of coarse channel - 0.64 -> lower edge of the MWA coarse channel:
                   // TODO : get this information from xcorr structure or metedata, otherwise it will not work for EDA2 etc:                  
                   //        it looks to me that the required fields need to be added there first
-                  channel_frequency_MHz = frequencyMHz - coarse_ch_bw/2.00 + fine_ch_bw*frequency; // cotter has a bug ? - does not add half of fine channel to calculate channel frequency 
+                  channel_frequency_MHz = coarse_channel_central_freq_MHz - coarse_ch_bw/2.00 + fine_ch_bw*frequency; // cotter has a bug ? - does not add half of fine channel to calculate channel frequency 
                }else{
-                  channel_frequency_MHz = frequencyMHz - coarse_ch_bw/2.00 + fine_ch_bw*frequency + fine_ch_bw/2.00;
+                  channel_frequency_MHz = coarse_channel_central_freq_MHz - coarse_ch_bw/2.00 + fine_ch_bw*frequency + fine_ch_bw/2.00;
                }          
                imager.m_ImagerParameters.m_fCenterFrequencyMHz = channel_frequency_MHz; // update parameter in the imager too to make sure frequnecies are consistent 
                
-               char szChannelSolutionFile[1024],szOutDir[64];
-               // use calibration_solutions_file.c_str() as a basename and add channel 
-               sprintf(szChannelSolutionFile,"%s_chan%03d_xx.txt",calibration_solutions_file.c_str(),(frequency+start_fine_channel)); // WARNING : this is test version hence XX hardcoded (needs to be for both XX and YY)
-               imager.UpdateCalSolFile( szChannelSolutionFile );
-               sprintf(szOutDir,"%s%03d",szTemplateOutputDirectory.c_str(),(frequency+start_fine_channel));
+               char szOutDir[64];
+               sprintf(szOutDir,"%s/%d/%03d", output_dir.c_str(), obsInfo.coarseChannel, (frequency+start_fine_channel));
                imager.m_ImagerParameters.m_szOutputDirectory = szOutDir;               
             }
          
@@ -222,18 +221,9 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
             printf("DEBUG : starting imager using xcorr structure ( frequency = %d , frequencyMHz = %.6f [MHz] -> channel frequency = %.6f [MHz] )\n",frequency,frequencyMHz,channel_frequency_MHz);
             char szOutImage[64];
             sprintf(szOutImage,"test_image_time%06d_ch%05d",integrationInterval,frequency);
-            imager.SetDebugLevel(100);
-            imager.SetFileLevel(100);
             imager.run_imager( xcorr, integrationInterval, frequency, channel_frequency_MHz, imageSize, FOV_degrees, 
                                  MinUV, true, true, szWeighting.c_str(), szOutImage, false);
          }
       }
-   }
-   
-   if( false ){ // may add option later to save to GPU FITS files, currently not required 
-      std::stringstream fitsFileName;
-      fitsFileName << obsInfo.id << "_" << obsInfo.startTime << "_gpubox" << obsInfo.coarseChannel << "_00.fits";
-      std::string outputFileName {output_dir + "/" + fitsFileName.str()};
-      xcorr.to_fits_file(outputFileName);
    }
 }

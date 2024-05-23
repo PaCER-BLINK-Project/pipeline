@@ -26,9 +26,9 @@ SOL_FILE=${BLINK_TEST_DATADIR}/mwa/1276619416/1276625432.bin
 
 print_run mkdir -p ch000 ch001 ch750
 
-print_run ../blink_pipeline -c 4 -C 0 -t 1.00s -o ch000/ -n 8192 -f 169.6000 -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 0 -r -L -G -s ${SOL_FILE} -b 0 -r -V 0 -A 21,25,58,71,80,81,92,101,108,114,119,125   1276619416_1276619418_ch133.dat 
-print_run ../blink_pipeline -c 4 -C 1 -t 1.00s -o ch001/ -n 8192 -f 169.6400 -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s ${SOL_FILE} -b 0 -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125  1276619416_1276619418_ch133.dat 
-print_run ../blink_pipeline -c 4 -C 14 -t 1.00s -o ch750/ -n 8192 -f 199.6000 -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s ${SOL_FILE} -b 23 -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125  1276619416_1276619418_ch156.dat 
+print_run ../blink_pipeline -c 4 -C 0 -t 1.00s -o ch000/ -n 8192 -f 169.6000 -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 0 -r -L -G -s ${SOL_FILE} -b 0 -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125   1276619416_1276619418_ch133.dat 
+print_run ../blink_pipeline -c 4 -C 1 -t 1.00s -o ch001/ -n 8192 -f 169.6400 -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 0 -r -L -G -s ${SOL_FILE} -b 0 -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125  1276619416_1276619418_ch133.dat 
+print_run ../blink_pipeline -c 4 -C 14 -t 1.00s -o ch750/ -n 8192 -f 199.6000 -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 0 -r -L -G -s ${SOL_FILE} -b 23 -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125  1276619416_1276619418_ch156.dat 
 
 
 echo "Checking correctness of results.."
