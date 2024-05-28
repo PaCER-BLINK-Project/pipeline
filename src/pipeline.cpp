@@ -198,7 +198,7 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
                imager.m_ImagerParameters.m_fCenterFrequencyMHz = channel_frequency_MHz; // update parameter in the imager too to make sure frequnecies are consistent 
                
                char szOutDir[64];
-               sprintf(szOutDir,"%s/%d/%03d", output_dir.c_str(), obsInfo.coarseChannel, frequency);
+               sprintf(szOutDir,"%s/%ld/%d/%03d", output_dir.c_str(), obsInfo.startTime, obsInfo.coarseChannel, frequency);
                imager.m_ImagerParameters.m_szOutputDirectory = szOutDir;
                if(calibrate_in_imager){
                   char szChannelSolutionFile[1024];
