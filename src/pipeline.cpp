@@ -175,11 +175,6 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
    // TODO : keep the loop so that it change be parallelised using OpenMP
    // xcorr.nFrequencies = 1;
    printf("DEBUG : imaging %d intervals and %d frequency channels\n",int(xcorr.integration_intervals()),xcorr.nFrequencies);
-   int start_fine_channel = 0;
-   if( freq_channel < -1 ){
-      start_fine_channel = abs( freq_channel );
-   }
-   printf("DEBUG : start_fine_channel = %d (from freq_channel = %d)\n",start_fine_channel,freq_channel);
    for(int integrationInterval {0}; integrationInterval < xcorr.integration_intervals(); integrationInterval++){
       for(int frequency {0}; frequency < xcorr.nFrequencies; frequency++){
          if ( frequency == freq_channel || freq_channel < 0 ){
@@ -203,12 +198,12 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
                imager.m_ImagerParameters.m_fCenterFrequencyMHz = channel_frequency_MHz; // update parameter in the imager too to make sure frequnecies are consistent 
                
                char szOutDir[64];
-               sprintf(szOutDir,"%s/%d/%03d", output_dir.c_str(), obsInfo.coarseChannel, (frequency+start_fine_channel));
+               sprintf(szOutDir,"%s/%d/%03d", output_dir.c_str(), obsInfo.coarseChannel, frequency);
                imager.m_ImagerParameters.m_szOutputDirectory = szOutDir;
                if(calibrate_in_imager){
                   char szChannelSolutionFile[1024];
                   // use calibration_solutions_file.c_str() as a basename and add channel 
-                  sprintf(szChannelSolutionFile,"%s_chan%03d_xx.txt",calibration_solutions_file.c_str(),(obsInfo.coarse_channel_index * xcorr.nFrequencies + frequency+start_fine_channel)); // WARNING : this is test version hence XX hardcoded (needs to be for both XX and YY)
+                  sprintf(szChannelSolutionFile,"%s_chan%03d_xx.txt",calibration_solutions_file.c_str(),(obsInfo.coarse_channel_index * xcorr.nFrequencies + frequency)); // WARNING : this is test version hence XX hardcoded (needs to be for both XX and YY)
                   std::cout << "Using solution file " << szChannelSolutionFile << std::endl;
                   imager.UpdateCalSolFile( szChannelSolutionFile );
                }         

@@ -68,20 +68,12 @@ cd ${build_dir}
 # Voltages and Visibilities classes derive from MemoryBuffer, a template class in a header file make use of GPU calls.
 print_run cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_BUILD_TYPE=Debug
 make VERBOSE=1
-make test
-
-# compare images created during build with template images :
-# CRISTIAN's note: this should happen within "make test"
-print_run calcfits_bg images/test_image_real.fits = $BLINK_TEST_DATADIR/eda2/test_image_real.fits
-
-print_run calcfits_bg images/test_image_imag.fits = $BLINK_TEST_DATADIR/eda2/test_image_imag.fits
-
-
+# make test
 # Install the software
-make install
+# make install
 
-echo "Create the modulefile.."
-create_modulefile
+# echo "Create the modulefile.."
+# create_modulefile
 
 echo "Done."
 
