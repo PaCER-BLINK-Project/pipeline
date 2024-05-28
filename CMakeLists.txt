@@ -1,8 +1,15 @@
 cmake_minimum_required(VERSION 3.10.0)
-project(pipeline)
-set(CMAKE_CXX_STANDARD 17)
-
+project(blink_astroio)
+set(CMAKE_CXX_STANDARD 14)
 include(CTest)
+
+option(USE_CUDA "Compile the code with NVIDIA GPU support." OFF)
+option(USE_HIP "Compile the code with AMD GPU support." OFF)
+
+if(USE_CUDA)
+enable_language(CUDA CXX)
+endif()
+
 
 if(USE_HIP)
     message("INFO : HIP/GPU version")

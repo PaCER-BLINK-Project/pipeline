@@ -88,7 +88,6 @@ namespace blink {
         // flagged antennas :
         std::string szFlaggedAntennasListString;
         std::vector<int> szFlaggedAntennasList;
-
         
 
         public:        
@@ -97,7 +96,7 @@ namespace blink {
                   int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, 
                   bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
                   double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime, bool b_calibrate_in_imager,
-                  vector<int>& flagged_antennas
+                  vector<int>& flagged_antennas, std::string& output_dir
                 );
         
         void run(const Voltages& input, int freq_channel = -1);

@@ -5,7 +5,6 @@
 #include <stdexcept>
 #include <cstring>
 #include <sstream>
-// #include <filesystem>
 #include <memory>
 #include "../src/pipeline.hpp"
 
@@ -16,7 +15,7 @@
 #include <mydate.h>
 #include <mystrtable.h>
 #include <pacer_imager_defs.h>
-
+#include "../src/files.hpp"
 
 
 
@@ -39,13 +38,13 @@ int main(int argc, char **argv){
         std::cerr << ex.what() << std::endl;
         exit(1);
     }
-    // Create output directory if exists
-/*    if(opts.outputDir != "." && ! std::filesystem::exists(opts.outputDir)){
-        if(!std::filesystem::create_directory(opts.outputDir)){
+     // Create output directory if exists
+    if(opts.outputDir != "." && ! blink::dir_exists(opts.outputDir)){
+        if(!blink::create_directory(opts.outputDir)){
             std::cerr << "Impossible to create the output directory." << std::endl;
             exit(1);
         }
-    }*/
+    }
     print_program_options(opts);
 
 
@@ -55,7 +54,7 @@ int main(int argc, char **argv){
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FrequencyMHz, opts.FOV_degrees, opts.inputDataType, 
-        opts.fUnixTime, opts.ApplyCalibrationInImager, opts.gFlaggedAntennasList 
+        opts.fUnixTime, opts.ApplyCalibrationInImager, opts.gFlaggedAntennasList, opts.outputDir
     };
 
     bool on_gpu = num_available_gpus() > 0;
