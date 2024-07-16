@@ -54,7 +54,7 @@ int main(int argc, char **argv){
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FrequencyMHz, opts.FOV_degrees, opts.inputDataType, 
-        opts.fUnixTime, opts.ApplyCalibrationInImager, opts.gFlaggedAntennasList, opts.outputDir
+        opts.fUnixTime, opts.gFlaggedAntennasList, opts.outputDir
     };
 
     bool on_gpu = num_available_gpus() > 0;
@@ -145,8 +145,7 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
     opts.ImageSize = 180;
     opts.reorder = false;
     opts.bPrintImageStatistics = false;
-    opts.FreqChannelToImage = -1; // image all channels 
-    opts.ApplyCalibrationInImager = true; // default to apply calibration in the imager
+    opts.FreqChannelToImage = -1; // image all channels
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
@@ -175,8 +174,7 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
                break;
             }
             
-            case 'b' : {               
-               opts.ApplyCalibrationInImager = false;
+            case 'b' : {
                opts.coarseChannelIndex = atoi(optarg);
                break;
             }
@@ -312,7 +310,6 @@ void print_program_options(const blink::ProgramOptions& opts){
     "\t Number of channels to average: " << opts.nChannelsToAvg << "\n"
     "\t Output directory: " << opts.outputDir << "\n" 
     "\t Data type: " << opts.inputDataType  << "\n"
-    "\t Calibration in imager: " << opts.ApplyCalibrationInImager << "\n"
     "\t Calibration file: " << opts.szCalibrationSolutionsFile << "\n"    
     "\t Zenith image: " << opts.bZenithImage << std::endl;
 }

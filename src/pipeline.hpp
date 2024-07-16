@@ -7,7 +7,7 @@
 #include <utils.hpp>
 #include <memory>
 #ifdef IMAGER_HIP
-#include <pacer_imager_hip.h>
+#include <hip/pacer_imager_hip.h>
 #else
 #include <pacer_imager.h>
 #endif
@@ -42,7 +42,6 @@ namespace blink {
         DataType inputDataType;
         double fUnixTime;
         int FreqChannelToImage;
-        bool ApplyCalibrationInImager;
         
         // flagging antennas:
         string gFlaggedAntennasListString;
@@ -61,7 +60,6 @@ namespace blink {
         std::string output_dir;
         bool calibrate {false};        
         bool reorder {false};
-        bool calibrate_in_imager {true};
         // Correlation-related options
         unsigned int channels_to_avg {1};
         double integration_time {0.01};
@@ -95,7 +93,7 @@ namespace blink {
         Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
                   int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, 
                   bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
-                  double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime, bool b_calibrate_in_imager,
+                  double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime,
                   vector<int>& flagged_antennas, std::string& output_dir
                 );
         

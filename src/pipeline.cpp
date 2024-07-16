@@ -74,7 +74,7 @@ void ConvertXCorr2Fits(Visibilities& xcorr, CBgFits& vis_re, CBgFits& vis_im, in
 
 
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
-    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime, bool b_calibrate_in_imager, vector<int>& flagged_antennas, std::string& output_dir){
+    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime, vector<int>& flagged_antennas, std::string& output_dir){
 
     // set imager parameters according to options :    
     // no if here - assuming always true :
@@ -83,7 +83,6 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->integration_time = integrationTime;
     this->calibrate = calibrate;
     this->calibration_solutions_file = solutions_file;
-    this->calibrate_in_imager = b_calibrate_in_imager;
     this->imageSize = imageSize;
     this->MetaDataFile = metadataFile;
     this->MinUV = minUV;
@@ -107,15 +106,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     }
     
     imager.m_ImagerParameters.m_fUnixTime = fUnixTime;
-    if( this->calibrate_in_imager ){
-       printf("DEBUG : setting calibration solution file in imager (to apply calibration there)\n");
-       imager.m_CalibrationSolutions.m_filename = solutions_file.c_str();
-    }else{
-       printf("DEBUG : setting calibration solution file in imager to empty value (apply cal. in blink_pipeline)\n");
-       imager.m_CalibrationSolutions.m_filename = "";
-    }
-
-
+    
     // // overwrite with number of antennas according to the list :
     // if( imager.m_MetaData.m_AntennaPositions.size() > 0 ){
         // Cristian's comment: this can be dangerous for the correlator
@@ -162,15 +153,12 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
 	   xcorr = reorder_visibilities(xcorr, mapping);
    }
 
-   if( calibrate_in_imager ){ 
-      printf("DEBUG : calibration will be applied in imager (not in blink::Pipeline::run)\n");
-   }else{
-      if( calibrate ){ // disabled for now before I check other things
-         std::cout << "Calibration is being applied in the pipeline ( coarse channel index = " << obsInfo.coarse_channel_index << ")." << std::endl;
-         auto sol = CalibrationSolutions::from_file(this->calibration_solutions_file);
-         apply_solutions(xcorr, sol, obsInfo.coarse_channel_index);
-      }
+   if( calibrate ){ // disabled for now before I check other things
+      std::cout << "Calibration is being applied in the pipeline ( coarse channel index = " << obsInfo.coarse_channel_index << ")." << std::endl;
+      auto sol = CalibrationSolutions::from_file(this->calibration_solutions_file);
+      apply_solutions(xcorr, sol, obsInfo.coarse_channel_index);
    }
+   
 
    // TODO : keep the loop so that it change be parallelised using OpenMP
    // xcorr.nFrequencies = 1;
@@ -200,13 +188,6 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
                char szOutDir[64];
                sprintf(szOutDir,"%s/%ld/%d/%03d", output_dir.c_str(), obsInfo.startTime, obsInfo.coarseChannel, frequency);
                imager.m_ImagerParameters.m_szOutputDirectory = szOutDir;
-               if(calibrate_in_imager){
-                  char szChannelSolutionFile[1024];
-                  // use calibration_solutions_file.c_str() as a basename and add channel 
-                  sprintf(szChannelSolutionFile,"%s_chan%03d_xx.txt",calibration_solutions_file.c_str(),(obsInfo.coarse_channel_index * xcorr.nFrequencies + frequency)); // WARNING : this is test version hence XX hardcoded (needs to be for both XX and YY)
-                  std::cout << "Using solution file " << szChannelSolutionFile << std::endl;
-                  imager.UpdateCalSolFile( szChannelSolutionFile );
-               }         
             }
          
             //----------------------------------------------------------------
