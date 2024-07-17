@@ -96,7 +96,6 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->output_dir = output_dir;
     imager.m_ImagerParameters.SetGlobalParameters(szAntennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
     imager.m_ImagerParameters.m_szOutputDirectory = outputDir.c_str();
-    imager.m_ImagerParameters.m_fCenterFrequencyMHz = frequencyMHz;
 
 
     if(strlen(metadataFile.c_str())){
@@ -107,25 +106,6 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     
     imager.m_ImagerParameters.m_fUnixTime = fUnixTime;
     
-    // // overwrite with number of antennas according to the list :
-    // if( imager.m_MetaData.m_AntennaPositions.size() > 0 ){
-        // Cristian's comment: this can be dangerous for the correlator
-    //     opts.obsInfo.nAntennas = imager.m_MetaData.m_AntennaPositions.size();
-    // }
-
-    // // set antenna flags (if there are):
-    // if( opts.szFlaggedAntennasList.size() > 0 ){
-    //     imager.SetFlaggedAntennas( opts.szFlaggedAntennasList );
-    // }
-   // imager.SetFileLevel(SAVE_FILES_FINAL);
-   // imager.SetDebugLevel(IMAGER_WARNING_LEVEL);
-
-   // TODO : de-hardcode , add option for a list of flagged antennas !
-   // vector<int> flagged_antennas;
-   // flagged_antennas.push_back(80);
-   // flagged_antennas.push_back(119);
-   // imager.SetFlaggedAntennas( flagged_antennas );
-   imager.Initialise();
    
    // setting flagged antennas must be called / done after reading METAFITS file:
    if( flagged_antennas.size() > 0 ){
@@ -159,54 +139,7 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
       apply_solutions(xcorr, sol, obsInfo.coarse_channel_index);
    }
    
-
-   // TODO : keep the loop so that it change be parallelised using OpenMP
-   // xcorr.nFrequencies = 1;
-   printf("DEBUG : imaging %d intervals and %d frequency channels\n",int(xcorr.integration_intervals()),xcorr.nFrequencies);
-   for(int integrationInterval {0}; integrationInterval < xcorr.integration_intervals(); integrationInterval++){
-      for(int frequency {0}; frequency < xcorr.nFrequencies; frequency++){
-         if ( frequency == freq_channel || freq_channel < 0 ){
-            // if freq_channel is specified (processing of a single channel) -> use frequencyMHz as the center frequency of this channel
-            // otherwise, calculate frequency assuming frequencyMHz is the start frequency of the entire band:
-            // I am including cotter-compatibility option here to be able to compare with standard SMART pipeline processing:
-            double coarse_channel_central_freq_MHz = obsInfo.coarseChannel * 1.28;
-            double channel_frequency_MHz = frequencyMHz;
-            if( freq_channel < 0 ){ // processing of all channels requires re-calculation of frequency :
-               bool cotter_compatible=true;
-               double fine_ch_bw = 0.04, coarse_ch_bw=1.28;
-               if( cotter_compatible ){
-                  // see for example awk commands in experiments/image_mwa_obsid1276619416_allch.sh 
-                  // frequencyMHz is assumed to be center frequency of coarse channel - 0.64 -> lower edge of the MWA coarse channel:
-                  // TODO : get this information from xcorr structure or metedata, otherwise it will not work for EDA2 etc:                  
-                  //        it looks to me that the required fields need to be added there first
-                  channel_frequency_MHz = coarse_channel_central_freq_MHz - coarse_ch_bw/2.00 + fine_ch_bw*frequency; // cotter has a bug ? - does not add half of fine channel to calculate channel frequency 
-               }else{
-                  channel_frequency_MHz = coarse_channel_central_freq_MHz - coarse_ch_bw/2.00 + fine_ch_bw*frequency + fine_ch_bw/2.00;
-               }          
-               imager.m_ImagerParameters.m_fCenterFrequencyMHz = channel_frequency_MHz; // update parameter in the imager too to make sure frequnecies are consistent 
-               
-               char szOutDir[64];
-               sprintf(szOutDir,"%s/%ld/%d/%03d", output_dir.c_str(), obsInfo.startTime, obsInfo.coarseChannel, frequency);
-               imager.m_ImagerParameters.m_szOutputDirectory = szOutDir;
-            }
-         
-            //----------------------------------------------------------------
-            // MS : 20230914 - temporary test code:
-            // CBgFits vis_re(128,128),vis_im(128,128);
-            // char szOutPutFits[1024];
-            // ConvertXCorr2Fits( xcorr, vis_re, vis_im, integrationInterval, frequency, imager.m_ImagerParameters.m_szOutputDirectory.c_str() );
-            // sprintf(szOutPutFits,"%s/re.fits",imager.m_ImagerParameters.m_szOutputDirectory.c_str());
-            // vis_re.WriteFits( szOutPutFits );
-            // sprintf(szOutPutFits,"%s/im.fits",imager.m_ImagerParameters.m_szOutputDirectory.c_str());
-            // vis_im.WriteFits( szOutPutFits );
-            // //----- end of temporary test code
-
-            printf("DEBUG : starting imager using xcorr structure ( frequency = %d , frequencyMHz = %.6f [MHz] -> channel frequency = %.6f [MHz] )\n",frequency,frequencyMHz,channel_frequency_MHz);
-            char szOutImage[64];
-            sprintf(szOutImage,"test_image_time%06d_ch%05d",integrationInterval,frequency);
-            imager.run_imager( xcorr, integrationInterval, frequency, channel_frequency_MHz, imageSize, FOV_degrees, 
-                                 MinUV, true, true, szWeighting.c_str(), szOutImage, false);
-         }
-      }
-   }
+   auto images = imager.run_imager(xcorr, -1, -1, imageSize, FOV_degrees, 
+      MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
 }
+

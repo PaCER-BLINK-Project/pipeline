@@ -29,8 +29,8 @@ module load bash-utils
 source "${BASH_UTILS_DIR}/build_utils.sh"
 
 
-PROGRAM_NAME=blink-pipeline
-PROGRAM_VERSION=main
+PROGRAM_NAME=blink-pipeline-${build_type}
+PROGRAM_VERSION=cristian-dev
 
  
 # the following function sets up the installation path according to the
@@ -45,19 +45,17 @@ process_build_script_input user #group
 # load all the modules required for the program to compile and run.
 # the following command also adds those module names in the modulefile
 # that this script will generate.
-echo "Loading required modules ..."
-if [ $PAWSEY_CLUSTER = "setonix" ]; then
-   module reset
-   module load cmake/3.24.3
-   if [[ $build_type == "gpu" ]]; then
-      print_run module_load blink_test_data/devel  blink_astroio/master  blink_correlator/master blink-imager-gpu/devel blink_preprocessing/main rocm/5.4.3
-   else
-      print_run module_load blink_test_data/devel  blink_astroio/master  blink_correlator/master blink-imager-cpu/devel blink_preprocessing/main rocm/5.4.3
-   fi
+echo "Loading required modules ..."=
+module reset
+module load cmake/3.27.7
+print_run module_load blink_test_data/devel  blink_astroio/master  blink_correlator/master blink-imager-gpu/cristian-dev blink_preprocessing/main rocm/5.7.3
+#print_run module_load blink_test_data/devel  blink_astroio/master  blink_correlator/master blink-imager-gpu/main-fixed blink_preprocessing/main rocm/5.7.3
+if [[ $build_type == "gpu" ]]; then
+   MORE_CMAKE_OPTIONS="-DUSE_HIP=ON"
 else
-   print_run module purge
-   print_run module_load gcc/8.3.0 cascadelake blink_test_data/devel blink-correlator/devel-cmplx blink-imager/cristian-dev
+   MORE_CMAKE_OPTIONS="-DUSE_HIP=OFF"
 fi
+
 # cmake is only required at build time, so we use the normal module load
 # build your software..
 echo "Building the software.."
@@ -66,14 +64,14 @@ echo "Building the software.."
 cd ${build_dir}
 # Turns out we need to compile with HIPCC if AstroIO and the other libraries were compiled with GPU support. This is because
 # Voltages and Visibilities classes derive from MemoryBuffer, a template class in a header file make use of GPU calls.
-print_run cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_BUILD_TYPE=Debug
+print_run cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_BUILD_TYPE=RelWithDebugInfo ${MORE_CMAKE_OPTIONS}
 make VERBOSE=1
 # make test
 # Install the software
-# make install
+make install
 
-# echo "Create the modulefile.."
-# create_modulefile
+echo "Create the modulefile.."
+create_modulefile
 
 echo "Done."
 
