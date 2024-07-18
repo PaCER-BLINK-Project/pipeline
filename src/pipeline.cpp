@@ -106,7 +106,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     
     imager.m_ImagerParameters.m_fUnixTime = fUnixTime;
     
-   
+   imager.Initialise(0);
    // setting flagged antennas must be called / done after reading METAFITS file:
    if( flagged_antennas.size() > 0 ){
        imager.SetFlaggedAntennas( flagged_antennas );
