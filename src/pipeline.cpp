@@ -139,7 +139,10 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
       apply_solutions(xcorr, sol, obsInfo.coarse_channel_index);
    }
    
+   std::cout << "Running imager.." << std::endl;
    auto images = imager.run_imager(xcorr, -1, -1, imageSize, FOV_degrees, 
       MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
+   std::cout << "Saving images to disk..." << std::endl;
+   images.to_fits_files(output_dir);
 }
 
