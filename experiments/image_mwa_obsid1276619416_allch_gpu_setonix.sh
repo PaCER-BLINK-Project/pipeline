@@ -2,7 +2,7 @@
 
 #SBATCH --account=director2183-gpu # your account pawsey0809-gpu or director2183-gpu
 #SBATCH --partition=gpu            # Using the gpu partition
-#SBATCH --time=06:00:00
+#SBATCH --time=23:59:00
 #SBATCH --ntasks-per-node=1        # Set this for 1 mpi task per compute device
 #SBATCH --gres=gpu:1
 #SBATCH --gpu-bind=closest         # Bind each MPI taks to the nearest GPU
@@ -18,14 +18,23 @@ start_coarse_channel=133
 fine_bw=0.04
 n_channels=768
 
+# testing on this compilation using software stack 2023.8 
+pipeline_path=/software/projects/director2183/msok/blink_pipeline/gpu/pipeline/build_gpu/blink_pipeline
 # blink-pipeline/main_ongpu - ongpu 
 pipeline_module=blink-pipeline/maingpu
+# use blink-pipeline/maincpu.lua for CPU 
 if [[ -n "$4" && "$4" != "-" ]]; then
    pipeline_module="$4"
 fi
 
 if [[ $PAWSEY_CLUSTER = "setonix" ]]; then
    module reset 
+   
+   # to use old software stack 2023.8
+#   module unload gcc/12.2.0 
+#   module swap pawseyenv/2024.05 pawseyenv/2023.08 
+#   module load gcc/12.2.0
+   
    module use /software/projects/director2183/msok/setonix/2023.08/modules/zen3/gcc/12.2.0/ /software/projects/director2183/setonix/2023.08/modules/zen3/gcc/12.2.0 /software/setonix/2023.08/modules/zen3/gcc/12.2.0/libraries
    module load msfitslib/devel   
    module use /software/projects/director2183/msok/setonix/2023.08/modules/zen3/gcc/12.2.0/ /software/projects/director2183/setonix/2023.08/modules/zen3/gcc/12.2.0
@@ -50,7 +59,7 @@ if [[ -n "$2" && "$2" != "-" ]]; then
    start_coarse_channel=$2
 fi
 
-cotter_compatible=0
+cotter_compatible=1
 if [[ -n "$3" && "$3" != "-" ]]; then
    cotter_compatible=$3
 fi
@@ -84,8 +93,9 @@ fi
 #   echo "INFO : file calsolutions_chan0_xx.txt already exists"
 #fi
 
-# cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan???_xx.txt .
-# cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan???_yy.txt .
+# Absolutely required otherwise gives wrong results
+cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan???_xx.txt .
+cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan???_yy.txt .
 
 # No averaging for the start:
 echo "------------------------------------------"
@@ -114,8 +124,8 @@ do
    echo "Imaging channel = $ch ($ch_str)"
    # !!!! WARNING : do not touch the explicit path it is here to make sure I am really using the version I want !!!!
    #                trespassers will be punished !!!   
-   echo "/software/projects/director2183/msok/blink_pipeline/gpu/pipeline/build_gpu/blink_pipeline -c 4 -C $fine_channel_to_image -t 1.00s -o ch${ch_str}/ -n 8192 -f ${freq_mhz} -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s calsolutions_chan${ch_str}_xx.txt -r -V 100 1276619416_1276619418_ch${coarse_channel}.dat > ch${ch_str}/out 2>&1"
-   /software/projects/director2183/msok/blink_pipeline/gpu/pipeline/build_gpu/blink_pipeline -c 4 -C $fine_channel_to_image -t 1.00s -o ch${ch_str}/ -n 8192 -f ${freq_mhz} -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s calsolutions_chan${ch_str}_xx.txt -r -V 100 1276619416_1276619418_ch${coarse_channel}.dat > ch${ch_str}/out 2>&1
+   echo "${pipeline_path} -c 4 -C $fine_channel_to_image -t 1.00s -o ch${ch_str}/ -n 8192 -f ${freq_mhz} -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s calsolutions_chan${ch_str}_xx.txt -r -V 100 1276619416_1276619418_ch${coarse_channel}.dat > ch${ch_str}/out 2>&1"
+   ${pipeline_path} -c 4 -C $fine_channel_to_image -t 1.00s -o ch${ch_str}/ -n 8192 -f ${freq_mhz} -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s calsolutions_chan${ch_str}_xx.txt -r -V 100 1276619416_1276619418_ch${coarse_channel}.dat > ch${ch_str}/out 2>&1
 
    # moving test correlation matrix file to specific channel subdirectory:   
    mv ??.fits ch${ch_str}/
