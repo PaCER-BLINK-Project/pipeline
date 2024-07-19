@@ -124,8 +124,8 @@ do
    echo "Imaging channel = $ch ($ch_str)"
    # !!!! WARNING : do not touch the explicit path it is here to make sure I am really using the version I want !!!!
    #                trespassers will be punished !!!   
-   echo "${pipeline_path} -c 4 -C $fine_channel_to_image -t 1.00s -o ch${ch_str}/ -n 8192 -f ${freq_mhz} -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s calsolutions_chan${ch_str}_xx.txt -r -V 100 1276619416_1276619418_ch${coarse_channel}.dat > ch${ch_str}/out 2>&1"
-   ${pipeline_path} -c 4 -C $fine_channel_to_image -t 1.00s -o ch${ch_str}/ -n 8192 -f ${freq_mhz} -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s calsolutions_chan${ch_str}_xx.txt -r -V 100 1276619416_1276619418_ch${coarse_channel}.dat > ch${ch_str}/out 2>&1
+   echo "${pipeline_path} -c 4 -C $fine_channel_to_image -t 1.00s -o ch${ch_str}/ -n 8192 -f ${freq_mhz} -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s calsolutions_chan${ch_str}_xx.txt -r -V 100 1276619416_1276619418_ch${coarse_channel}.dat -A 21,25,58,71,80,81,92,101,108,114,119,125 > ch${ch_str}/out 2>&1"
+   ${pipeline_path} -c 4 -C $fine_channel_to_image -t 1.00s -o ch${ch_str}/ -n 8192 -f ${freq_mhz} -F 30 -M 20200619163000.metafits -U 1592584240 -w N -v 100 -r -L -G -s calsolutions_chan${ch_str}_xx.txt -r -V 100 1276619416_1276619418_ch${coarse_channel}.dat -A 21,25,58,71,80,81,92,101,108,114,119,125 > ch${ch_str}/out 2>&1
 
    # moving test correlation matrix file to specific channel subdirectory:   
    mv ??.fits ch${ch_str}/
