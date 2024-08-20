@@ -50,7 +50,7 @@ int main(int argc, char **argv){
 
 
     // TODO : replace all these options to just ProgramOptions& opts - not doing it now !
-    blink::Pipeline pipeline  {
+    blink::Pipeline pipeline  { opts, 
         opts.nChannelsToAvg, opts.integrationTime, opts.reorder, opts.szCalibrationSolutionsFile.length() > 0,
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
@@ -148,12 +148,13 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
     opts.bPrintImageStatistics = false;
     opts.FreqChannelToImage = -1; // image all channels 
     opts.ApplyCalibrationInImager = true; // default to apply calibration in the imager
+    opts.bAutoFixMetaData = false;
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:f:F:n:U:v:w:V:C:GLA:b:";
+    const char *options = "rt:c:o:a:M:Zi:s:f:F:n:U:v:w:V:C:GLA:b:u";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -258,6 +259,11 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
                if( optarg && strlen(optarg) ){
                    opts.fUnixTime = atof( optarg );
                }
+               break;
+            }
+            
+            case 'u' : {
+               opts.bAutoFixMetaData = true;
                break;
             }
             

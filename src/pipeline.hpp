@@ -32,6 +32,7 @@ namespace blink {
         double FrequencyMHz;
         double FOV_degrees;
         std::string MetaDataFile;
+        bool bAutoFixMetaData;
         std::string ImagerOutFilePostfix;
         int ImageSize;
         double MinUV;
@@ -93,7 +94,7 @@ namespace blink {
 
         public:        
 
-        Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
+        Pipeline(ProgramOptions& opts, unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
                   int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, 
                   bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
                   double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime, bool b_calibrate_in_imager,
