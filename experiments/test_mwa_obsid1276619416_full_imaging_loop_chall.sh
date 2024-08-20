@@ -5,7 +5,7 @@
 
 #SBATCH --account=director2183-gpu # your account pawsey0809-gpu or director2183-gpu
 #SBATCH --partition=gpu            # Using the gpu partition
-#SBATCH --time=06:00:00
+#SBATCH --time=23:59:59
 #SBATCH --ntasks-per-node=1        # Set this for 1 mpi task per compute device
 #SBATCH --gres=gpu:1
 #SBATCH --gpu-bind=closest         # Bind each MPI taks to the nearest GPU
@@ -28,18 +28,21 @@ n_channels=768
 start_coarse_channel=133
 fine_bw=0.04
 
-pipeline_path=/software/projects/director2183/msok/blink_pipeline/cpu/pipeline/build/blink_pipeline
-if [[ -n "$1" && "$1" == "setonix" ]] ;then
-   pipeline_path=/software/projects/director2183/msok/blink_pipeline/gpu/pipeline/build_gpu/blink_pipeline
-fi
+# pipeline_path=/media/msok/5508b34c-040a-4dce-a8ff-2c4510a5d1a3/pacer/software/blink_pipeline/pipeline/build_20240501_cpu_external/blink_pipeline
+# if [[ -n "$1" && "$1" == "setonix" ]] ;then
+pipeline_path=/software/projects/director2183/msok/blink_pipeline/gpu/pipeline/build_gpu/blink_pipeline
+# fi
 
 module_path=`which module`
 
 if [[ $PAWSEY_CLUSTER = "setonix" ]]; then
-   # pipeline_module=blink-pipeline/maingpu
-   pipeline_module=blink-pipeline/maincpu.lua
+   pipeline_module=blink-pipeline/maingpu
    
    module reset 
+   module unload gcc/12.2.0 
+   module swap pawseyenv/2024.05 pawseyenv/2023.08 
+   module load gcc/12.2.0
+   
    module use /software/projects/director2183/msok/setonix/2023.08/modules/zen3/gcc/12.2.0/ /software/projects/director2183/setonix/2023.08/modules/zen3/gcc/12.2.0 /software/setonix/2023.08/modules/zen3/gcc/12.2.0/libraries
    module load msfitslib/devel   
    module use /software/projects/director2183/msok/setonix/2023.08/modules/zen3/gcc/12.2.0/ /software/projects/director2183/setonix/2023.08/modules/zen3/gcc/12.2.0
@@ -54,24 +57,26 @@ else
    echo "INFO : file 20200619163000.metafits already exists"
 fi   
 
-ch=0
-while [[ $ch -lt 32 ]];
-do
-   ch_str=`echo $ch | awk '{printf("%03d",$1);}'`
-   echo "cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan${ch_str}_xx.txt ."
-   cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan${ch_str}_xx.txt .
-   
-   mkdir -p ch${ch_str}
-   
-   ch=$(($ch+1))
-done   
+#ch=0
+#while [[ $ch -lt 32 ]];
+#do
+#   ch_str=`echo $ch | awk '{printf("%03d",$1);}'`
+#   echo "cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan${ch_str}_xx.txt ."
+#   cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan${ch_str}_xx.txt .
+#   
+#   mkdir -p ch${ch_str}
+#   
+#   ch=$(($ch+1))
+#done   
+echo "cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan*_xx.txt ."
+cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan*_xx.txt .
 
 echo "------------------- preparation completed -------------------"
 
 coarse_channel=$start_coarse_channel
 end_coarse_channel=$(($start_coarse_channel+24))
 
-while [[ $coarse_channel -le $end_coarse_channel ]];
+while [[ $coarse_channel -lt $end_coarse_channel ]];
 do
    if [[ -n "$channel_selection" ]]; then
       if is_one_of "$coarse_channel" '156'; then
