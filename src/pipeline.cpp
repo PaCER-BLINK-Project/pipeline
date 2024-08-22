@@ -5,7 +5,6 @@
 #include <stdexcept>
 #include <cstring>
 #include <sstream>
-#include <memory>
 // #include <filesystem>
 
 #include <correlation.hpp>
@@ -72,7 +71,7 @@ void ConvertXCorr2Fits(Visibilities& xcorr, CBgFits& vis_re, CBgFits& vis_im, in
 //-----------------------------------------------------------------------------------------------
 
 
-blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
+blink::Pipeline::Pipeline(ProgramOptions& opts, unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
     double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime, bool b_calibrate_in_imager, vector<int>& flagged_antennas  ){
 
     // set imager parameters according to options :    
@@ -93,10 +92,12 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->frequencyMHz = frequencyMHz;
     this->FOV_degrees = FOV_degrees;
     this->reorder = reorder;
+
     imager.m_ImagerParameters.SetGlobalParameters(szAntennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
     imager.m_ImagerParameters.m_szOutputDirectory = outputDir.c_str();
     imager.m_ImagerParameters.m_fCenterFrequencyMHz = frequencyMHz;
 
+    imager.m_ImagerParameters.m_bAutoFixMetaData = opts.bAutoFixMetaData;
 
     if(strlen(metadataFile.c_str())){
         imager.m_ImagerParameters.m_MetaDataFile = metadataFile.c_str();
@@ -141,17 +142,18 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
 }
 
 
-void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs, int freq_channel /*=-1*/ ){
-   for(const auto& input : inputs){
-      run(*input, freq_channel);
+void blink::Pipeline::run(const std::vector<Voltages>& inputs, int freq_channel /*=-1*/ ){
+
+   for(const Voltages& input : inputs){
+      run(input, freq_channel);
    }
 }
 
-void blink::Pipeline::run(const Voltages& input, int freq_channel){
+void blink::Pipeline::run( const Voltages& input, int freq_channel){
    const ObservationInfo& obsInfo {input.obsInfo};
    unsigned int nIntegrationSteps {static_cast<unsigned int>(integration_time / obsInfo.timeResolution)};
 
-   std::cout << "Correlating voltages (OBSID = " << obsInfo.id << ", Coarse Channel = " << obsInfo.coarseChannel << ") .." << std::endl;
+   std::cout << "Correlating voltages " << obsInfo.id << ".." << std::endl;        
    
    auto xcorr = cross_correlation(input, channels_to_avg);
    
@@ -164,9 +166,8 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
       printf("DEBUG : calibration will be applied in imager (not in blink::Pipeline::run)\n");
    }else{
       if( calibrate ){ // disabled for now before I check other things
-         std::cout << "Calibration is being applied in the pipeline ( coarse channel index = " << obsInfo.coarse_channel_index << ")." << std::endl;
          auto sol = CalibrationSolutions::from_file(this->calibration_solutions_file);
-         apply_solutions(xcorr, sol, obsInfo.coarse_channel_index);
+         apply_solutions(xcorr, sol, 0);
       }
    }
 

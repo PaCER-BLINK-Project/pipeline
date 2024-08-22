@@ -5,7 +5,9 @@
 #include <string>
 #include <astroio.hpp>
 #include <utils.hpp>
-#include <memory>
+
+#include "bg_fits.h"
+
 #ifdef IMAGER_HIP
 #include <pacer_imager_hip.h>
 #else
@@ -17,12 +19,11 @@ namespace blink {
     enum DataType {MWA=1, EDA2=2};
 
     struct ProgramOptions {
-        std::vector<std::string> input_files;
+        std::vector<std::pair<std::string, ObservationInfo>> inputs;
         std::string outputDir;
         unsigned int nChannelsToAvg;
         double integrationTime;
         bool reorder;
-        int coarseChannelIndex;
         // imager options:
         ObservationInfo obsInfo;
         std::string szAntennaPositionsFile;
@@ -32,6 +33,7 @@ namespace blink {
         double FrequencyMHz;
         double FOV_degrees;
         std::string MetaDataFile;
+        bool bAutoFixMetaData;
         std::string ImagerOutFilePostfix;
         int ImageSize;
         double MinUV;
@@ -93,7 +95,7 @@ namespace blink {
 
         public:        
 
-        Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
+        Pipeline( ProgramOptions& opts, unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
                   int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, 
                   bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
                   double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime, bool b_calibrate_in_imager,
@@ -101,7 +103,7 @@ namespace blink {
                 );
         
         void run(const Voltages& input, int freq_channel = -1);
-        void run(const std::vector<std::shared_ptr<Voltages>>& inputs, int freq_channel = -1);
+        void run(const std::vector<Voltages>& inputs, int freq_channel = -1);
 
     };
 }

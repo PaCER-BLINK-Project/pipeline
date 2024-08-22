@@ -6,7 +6,7 @@
 #include <cstring>
 #include <sstream>
 // #include <filesystem>
-#include <memory>
+
 #include "../src/pipeline.hpp"
 
 #include <pacer_imager.h>
@@ -35,7 +35,7 @@ int main(int argc, char **argv){
     }
     try {
         parse_program_options(argc, argv, opts);
-    } catch (std::invalid_argument& ex){
+    } catch (std::invalid_argument ex){
         std::cerr << ex.what() << std::endl;
         exit(1);
     }
@@ -47,47 +47,30 @@ int main(int argc, char **argv){
         }
     }*/
     print_program_options(opts);
-
-
+    
+    std::vector<Voltages> input_voltages;
+    for( auto& [filename, obs_info] : opts.inputs){
+        unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
+        if(opts.inputDataType == blink::DataType::EDA2){
+            auto volt = Voltages::from_eda2_file(filename, obs_info, integration_steps);
+            input_voltages.push_back(std::move(volt));
+        }else{
+            auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps);
+            input_voltages.push_back(std::move(volt));
+        }
+    }
+    
     // TODO : replace all these options to just ProgramOptions& opts - not doing it now !
-    blink::Pipeline pipeline  {
-        opts.nChannelsToAvg, opts.integrationTime, opts.reorder, opts.szCalibrationSolutionsFile.length() > 0,
+    blink::Pipeline pipeline  { opts, 
+        opts.nChannelsToAvg, opts.integrationTime, opts.reorder, opts.szCalibrationSolutionsFile.length() > 0, 
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FrequencyMHz, opts.FOV_degrees, opts.inputDataType, 
         opts.fUnixTime, opts.ApplyCalibrationInImager, opts.gFlaggedAntennasList 
     };
+    
 
-    bool on_gpu = num_available_gpus() > 0;
-    if(opts.input_files.size() == 1){
-        std::string& filename = opts.input_files[0];
-        ObservationInfo obs_info = parse_mwa_phase1_dat_file_info(filename);
-        obs_info.coarse_channel_index = opts.coarseChannelIndex;
-        unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
-        auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps, on_gpu);
-        pipeline.run(volt ,opts.FreqChannelToImage);
-    }else{
-        auto observation = parse_mwa_dat_files(opts.input_files);
-        for (auto& one_second_data : observation) {
-            /* the std::vector memory allocator progressively allocates larger chunk of memory to
-             * make space for new elements, copying existing elements to the new memory location.
-             * In turn the MemoryBuffer copy contructor is called multiple times for the same object,
-             * wasting time and memory. The solution is to use smart pointers to Voltages object.
-             * In this way, smart pointers are the ones being copied over and over, instead of
-             * the object they point to.
-             */
-            std::vector<std::shared_ptr<Voltages>> voltages;
-            for(auto& dat_file : one_second_data){
-                std::string& filename {dat_file.first};
-                ObservationInfo obs_info {dat_file.second};
-                obs_info.coarse_channel_index = static_cast<unsigned int>(voltages.size());
-                unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
-                auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps, on_gpu);
-                voltages.push_back(std::make_shared<Voltages>(std::move(volt)));
-            }
-            pipeline.run(voltages ,opts.FreqChannelToImage);
-        }
-    }
+    pipeline.run(input_voltages,opts.FreqChannelToImage);
 }
 
 
@@ -153,7 +136,7 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:f:F:n:U:v:w:V:C:GLA:b:";
+    const char *options = "rt:c:o:a:M:Zi:s:f:F:n:U:v:w:V:C:GLA:bu";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -178,7 +161,6 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
             
             case 'b' : {               
                opts.ApplyCalibrationInImager = false;
-               opts.coarseChannelIndex = atoi(optarg);
                break;
             }
 
@@ -261,6 +243,11 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
                break;
             }
             
+            case 'u' : {
+               opts.bAutoFixMetaData = true;
+               break;
+            }
+            
             case 'w' : {
                if( optarg ){
                   opts.szWeighting = optarg;
@@ -289,11 +276,30 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
             }
         }
     }
-    for(; optind < argc; optind++) opts.input_files.push_back({argv[optind]});
-    
+    for(; optind < argc; optind++) {
+        ObservationInfo obsInfo;
+        if(opts.inputDataType == blink::DataType::MWA){
+           obsInfo = VCS_OBSERVATION_INFO;
+           // TODO: move file name parsing in astro io
+           std::string inputPath {argv[optind]};
+           std::string inputFilename {inputPath.substr(inputPath.find_last_of('/') + 1)};
+           size_t delimiter {inputFilename.find('_')};
+           std::string obsId {inputFilename.substr(0, delimiter)};
+           time_t gpsTime {atoll(inputFilename.substr(delimiter + 1, inputFilename.find_last_of('_') - delimiter - 1).c_str())};
+           int channel {atoi(inputFilename.substr(inputFilename.find_last_of('_') + 1, 3).c_str())};
+           obsInfo.id = obsId;
+           obsInfo.startTime = gpsTime;
+           // TODO channel?? 
+           opts.inputs.push_back(std::make_pair(argv[optind], obsInfo));
+        }else{
+           obsInfo = EDA2_OBSERVATION_INFO;
+           std::string inputPath {argv[optind]};
+           opts.inputs.push_back(std::make_pair(inputPath, obsInfo));
+        }
+    }
     // options validation
     if(opts.integrationTime <= 0) throw std::invalid_argument("You must specify a value for the integration time.");
-    if(opts.input_files.size() == 0) throw std::invalid_argument("No input file specified.");
+    if(opts.inputs.size() == 0) throw std::invalid_argument("No input file specified.");
     
     if( strlen(opts.gFlaggedAntennasListString.c_str()) > 0 ){
        MyParser pars=opts.gFlaggedAntennasListString.c_str();
