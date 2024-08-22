@@ -105,6 +105,10 @@ do
    if [[ coarse_channel_idx -gt 0 ]]; then
       start_fine_channel_param=-${start_fine_channel}
    fi
+
+   # gps2ux! 1276619419
+   # 1592584201
+   # was -U 1592584240
    echo "$pipeline_path -c 4 -C ${start_fine_channel_param} -t 1.00s -o ch -n 8192 -f ${freq_mhz} -F 30 -M 1276619416.metafits -u -U 1592584201  -w N -v 100 -r -L -G -s calsolutions -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125 1276619416_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1"
    $pipeline_path -c 4 -C ${start_fine_channel_param} -t 1.00s -o ch -n 8192 -f ${freq_mhz} -F 30 -M 1276619416.metafits -u -U 1592584201 -w N -v 100 -r -L -G -s calsolutions -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125 1276619416_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1
    
