@@ -19,15 +19,19 @@ is_one_of () {
 }
 
 
-channel_selection=""
-if [[ -n "$1" && $1 != "-" ]]; then
-   channel_selection="$1"
-fi
-
 n_channels=768
 start_coarse_channel=133
 fine_bw=0.04
+
 second=1276619419
+if [[ -n "$1" && $2 != "-" ]]; then
+   second=$1
+fi
+
+channel_selection=""
+if [[ -n "$2" && $1 != "-" ]]; then
+   channel_selection="$2"
+fi
 
 # pipeline_path=/media/msok/5508b34c-040a-4dce-a8ff-2c4510a5d1a3/pacer/software/blink_pipeline/pipeline/build_20240501_cpu_external/blink_pipeline
 # if [[ -n "$1" && "$1" == "setonix" ]] ;then
@@ -66,7 +70,7 @@ echo "------------------- preparation completed -------------------"
 coarse_channel=$start_coarse_channel
 end_coarse_channel=$(($start_coarse_channel+24))
 
-while [[ $coarse_channel -le $end_coarse_channel ]];
+while [[ $coarse_channel -lt $end_coarse_channel ]];
 do
    if [[ -n "$channel_selection" ]]; then
       if is_one_of "$coarse_channel" '156'; then
