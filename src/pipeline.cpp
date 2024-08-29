@@ -96,6 +96,7 @@ blink::Pipeline::Pipeline(ProgramOptions& opts, unsigned int nChannelsToAvg, dou
     imager.m_ImagerParameters.SetGlobalParameters(szAntennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
     imager.m_ImagerParameters.m_szOutputDirectory = outputDir.c_str();
     imager.m_ImagerParameters.m_fCenterFrequencyMHz = frequencyMHz;
+    imager.m_ImagerParameters.m_integrationTime = integrationTime;
 
     imager.m_ImagerParameters.m_bAutoFixMetaData = opts.bAutoFixMetaData;
 
