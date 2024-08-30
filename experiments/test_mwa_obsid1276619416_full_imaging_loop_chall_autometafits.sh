@@ -141,6 +141,6 @@ echo "------------------- blink_pipeline execution completed -------------------
 
 echo "Create average image"
 module load msfitslib/devel
-ls ch???/test_image_time000000_ch?????_real.fits > fits_list_all
+ls ch???/test_image_time??????_ch?????_real.fits > fits_list_all
 echo "avg_images fits_list_all avg_all.fits rms_all.fits -r 10000000.00"
 avg_images fits_list_all avg_all.fits rms_all.fits -r 10000000.00
