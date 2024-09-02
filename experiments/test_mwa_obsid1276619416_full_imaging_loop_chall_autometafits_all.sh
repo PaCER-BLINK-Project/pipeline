@@ -16,6 +16,7 @@ if [[ -n "$3" && "$3" != "-" ]]; then
 fi
 
 
+url="http://ws.mwatelescope.org/metadata/fits?obs_id="
 pipeline_path=/software/projects/director2183/msok/blink_pipeline/gpu/pipeline/
 
 second=$start_second
@@ -27,6 +28,19 @@ do
    mkdir -p ${subdir}
     
    cd ${subdir}
+   
+   if [[ -s ${obsid}.metafits ]]; then
+      echo "Metafits ${obsid}.metafits found OK"
+   else
+      echo "wget ${url}${obsid} -O ${obsid}.metafits"
+      wget ${url}${obsid} -O ${obsid}.metafits
+      
+      if [[ ! -s ${obsid}.metafits ]]; then
+         echo "cp ../template/${obsid}.metafits ."
+         cp ../template/${obsid}.metafits .
+      fi
+   fi
+   
    echo "sbatch ${pipeline_path}/experiments/test_mwa_obsid1276619416_full_imaging_loop_chall_autometafits.sh - 100 128 $obsid $second"
    sbatch ${pipeline_path}/experiments/test_mwa_obsid1276619416_full_imaging_loop_chall_autometafits.sh - 100 128 $obsid $second
    cd ..
