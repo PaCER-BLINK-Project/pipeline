@@ -15,6 +15,11 @@ if [[ -n "$3" && "$3" != "-" ]]; then
    start_second=$3
 fi
 
+avg_channels=4
+if [[ -n "$4" && $4 != "-" ]]; then
+   avg_channels=$4
+fi
+
 
 url="http://ws.mwatelescope.org/metadata/fits?obs_id="
 pipeline_path=/software/projects/director2183/msok/blink_pipeline/gpu/pipeline/
@@ -41,8 +46,8 @@ do
       fi
    fi
    
-   echo "sbatch ${pipeline_path}/experiments/test_mwa_obsid1276619416_full_imaging_loop_chall_autometafits.sh - 100 128 $obsid $second"
-   sbatch ${pipeline_path}/experiments/test_mwa_obsid1276619416_full_imaging_loop_chall_autometafits.sh - 100 128 $obsid $second
+   echo "sbatch ${pipeline_path}/experiments/test_mwa_obsid1276619416_full_imaging_loop_chall_autometafits.sh - 100 ${avg_channels} $obsid $second"
+   sbatch ${pipeline_path}/experiments/test_mwa_obsid1276619416_full_imaging_loop_chall_autometafits.sh - 100 ${avg_channels} $obsid $second
    cd ..
    
    second=$(($second+1))
