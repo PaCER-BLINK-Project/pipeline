@@ -29,11 +29,30 @@ if [[ -n "$2" && $2 != "-" ]]; then
    inttime_ms=$2
 fi
 
+avg_channels=4
+if [[ -n "$3" && $3 != "-" ]]; then
+   avg_channels=$3
+fi
+
+obsid=1276619416
+if [[ -n "$4" && $4 != "-" ]]; then
+   obsid="$4"
+fi
+
+second=1276619418 # GPS time to process 
+if [[ -n "$5" && $5 != "-" ]]; then
+   second="$5"
+fi
+uxtime=$(($second+315964782)) # 1592584200 for default GPS second 1276619418
+
 echo "###########################################################"
 echo "PARAMETERS:"
 echo "###########################################################"
+echo "obsid = $obsid"
+echo "second = $second"
 echo "channel_selection = $channel_selection"
 echo "inttime_ms = $inttime_ms"
+echo "avg_channels = $avg_channels"
 echo "###########################################################"
 
 n_channels=768
@@ -62,26 +81,26 @@ if [[ $PAWSEY_CLUSTER = "setonix" ]]; then
 fi
 # salloc --partition gpuq --time 1:00:00 --nodes=1
 
-if [[ ! -s 20200619163000.metafits ]]; then
-   echo "cp $BLINK_TEST_DATADIR/mwa/1276619416/20200619163000.metafits ."
-   cp $BLINK_TEST_DATADIR/mwa/1276619416/20200619163000.metafits .
-else
-   echo "INFO : file 20200619163000.metafits already exists"
-fi   
+# if [[ ! -s 20200619163000.metafits ]]; then
+#   echo "cp $BLINK_TEST_DATADIR/mwa/${obsid}/20200619163000.metafits ."
+#   cp $BLINK_TEST_DATADIR/mwa/${obsid}/20200619163000.metafits .
+#else
+#   echo "INFO : file 20200619163000.metafits already exists"
+#fi   
 
 #ch=0
 #while [[ $ch -lt 32 ]];
 #do
 #   ch_str=`echo $ch | awk '{printf("%03d",$1);}'`
-#   echo "cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan${ch_str}_xx.txt ."
-#   cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan${ch_str}_xx.txt .
+#   echo "cp $BLINK_TEST_DATADIR/mwa/${obsid}/calsolutions_chan${ch_str}_xx.txt ."
+#   cp $BLINK_TEST_DATADIR/mwa/${obsid}/calsolutions_chan${ch_str}_xx.txt .
 #   
 #   mkdir -p ch${ch_str}
 #   
 #   ch=$(($ch+1))
 #done   
-echo "cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan*_xx.txt ."
-cp $BLINK_TEST_DATADIR/mwa/1276619416/calsolutions_chan*_xx.txt .
+echo "cp $BLINK_TEST_DATADIR/mwa/${obsid}/calsolutions_chan*_xx.txt ."
+cp $BLINK_TEST_DATADIR/mwa/${obsid}/calsolutions_chan*_xx.txt .
 
 echo "------------------- preparation completed -------------------"
 
@@ -102,21 +121,21 @@ do
    freq_mhz=`echo $ch | awk -v coarse_channel=${coarse_channel} -v fine_bw=${fine_bw} '{freq_mhz=coarse_channel*1.28;printf("%.4f\n",freq_mhz);}'`
    echo "INFO : processing coarse_channel = $coarse_channel -> freq_mhz = $freq_mhz"      
 
-   if [[ -s /scratch/mwavcs/msok/1276619416/combined/1276619416_1276619418_ch${coarse_channel}.dat ]]; then   
-      echo "ln -sf /scratch/mwavcs/msok/1276619416/combined/1276619416_1276619418_ch${coarse_channel}.dat"
-      ln -sf /scratch/mwavcs/msok/1276619416/combined/1276619416_1276619418_ch${coarse_channel}.dat
+   if [[ -s /scratch/mwavcs/msok/${obsid}/combined/${obsid}_${second}_ch${coarse_channel}.dat ]]; then   
+      echo "ln -sf /scratch/mwavcs/msok/${obsid}/combined/${obsid}_${second}_ch${coarse_channel}.dat"
+      ln -sf /scratch/mwavcs/msok/${obsid}/combined/${obsid}_${second}_ch${coarse_channel}.dat
    else
-      if [[ -s $BLINK_TEST_DATADIR/mwa/1276619416/voltages/1276619416_1276619418_ch${coarse_channel}.dat ]]; then
-         echo "ln -sf $BLINK_TEST_DATADIR/mwa/1276619416/voltages/1276619416_1276619418_ch${coarse_channel}.dat"
-         ln -sf $BLINK_TEST_DATADIR/mwa/1276619416/voltages/1276619416_1276619418_ch${coarse_channel}.dat      
+      if [[ -s $BLINK_TEST_DATADIR/mwa/${obsid}/voltages/${obsid}_${second}_ch${coarse_channel}.dat ]]; then
+         echo "ln -sf $BLINK_TEST_DATADIR/mwa/${obsid}/voltages/${obsid}_${second}_ch${coarse_channel}.dat"
+         ln -sf $BLINK_TEST_DATADIR/mwa/${obsid}/voltages/${obsid}_${second}_ch${coarse_channel}.dat      
       else
-         echo "ERROR : missing file $BLINK_TEST_DATADIR/mwa/1276619416/voltages/1276619416_1276619418_ch${coarse_channel}.dat -> cannot continue"
+         echo "ERROR : missing file $BLINK_TEST_DATADIR/mwa/${obsid}/voltages/${obsid}_${second}_ch${coarse_channel}.dat -> cannot continue"
          exit;
       fi
    fi
    
-   if [[ ! -s 1276619416_1276619418_ch${coarse_channel}.dat ]]; then
-      echo "ERROR : file 1276619416_1276619418_ch${coarse_channel}.dat does not exist -> cannot continue"
+   if [[ ! -s ${obsid}_${second}_ch${coarse_channel}.dat ]]; then
+      echo "ERROR : file ${obsid}_${second}_ch${coarse_channel}.dat does not exist -> cannot continue"
       exit;
    fi
 
@@ -131,8 +150,8 @@ do
    # gps2ux! 1276619418
    # 1592584200
    # was -U 1592584240
-   echo "$pipeline_path -c 4 -C ${start_fine_channel_param} -t ${inttime_ms}ms -o ch -n 8192 -f ${freq_mhz} -F 30 -M 1276619416.metafits -u -U 1592584200 -w N -v 100 -r -L -G -s calsolutions -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125 1276619416_1276619418_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1"
-   $pipeline_path -c 4 -C ${start_fine_channel_param} -t ${inttime_ms}ms -o ch -n 8192 -f ${freq_mhz} -F 30 -M 1276619416.metafits -u -U 1592584200 -w N -v 100 -r -L -G -s calsolutions -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125 1276619416_1276619418_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1
+   echo "$pipeline_path -c ${avg_channels} -C ${start_fine_channel_param} -t ${inttime_ms}ms -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U $uxtime -w N -v 100 -r -L -G -s calsolutions -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125 ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1"
+   $pipeline_path -c ${avg_channels} -C ${start_fine_channel_param} -t ${inttime_ms}ms -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U $uxtime -w N -v 100 -r -L -G -s calsolutions -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125 ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1
    
    coarse_channel=$(($coarse_channel+1))
 done

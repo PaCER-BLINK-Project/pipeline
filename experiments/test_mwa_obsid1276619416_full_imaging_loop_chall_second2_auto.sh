@@ -24,12 +24,12 @@ start_coarse_channel=133
 fine_bw=0.04
 
 second=1276619419
-if [[ -n "$1" && $2 != "-" ]]; then
+if [[ -n "$1" && $1 != "-" ]]; then
    second=$1
 fi
 
 channel_selection=""
-if [[ -n "$2" && $1 != "-" ]]; then
+if [[ -n "$1" && $1 != "-" ]]; then
    channel_selection="$2"
 fi
 
