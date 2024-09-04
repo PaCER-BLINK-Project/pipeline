@@ -1,6 +1,6 @@
 #!/bin/bash
 
-n_avg=128
+n_avg=32 # 32 fine channels of 40kHz -> 1 coarse channel 
 if [[ -n "$1" && "$1" != "-" ]]; then
    n_avg=$1
 fi

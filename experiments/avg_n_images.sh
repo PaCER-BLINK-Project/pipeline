@@ -19,7 +19,7 @@ module use /software/projects/director2183/msok/setonix/2023.08/modules/zen3/gcc
 # module load msfitslib/devel 
 module load ${pipeline_module} 
 
-n_avg=128
+n_avg=32 # 32 fine channels of 40kHz -> 1 coarse channel 
 if [[ -n "$1" && "$1" != "-" ]]; then
    n_avg=$1
 fi
