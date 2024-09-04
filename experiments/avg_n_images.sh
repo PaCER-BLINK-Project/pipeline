@@ -10,12 +10,14 @@
 #SBATCH --error=./avg_n_images.e%j
 #SBATCH --export=NONE
 
+pipeline_module=blink-pipeline/maingpu
 module reset 
 module unload gcc/12.2.0 
 module swap pawseyenv/2024.05 pawseyenv/2023.08 
 module load gcc/12.2.0
 module use /software/projects/director2183/msok/setonix/2023.08/modules/zen3/gcc/12.2.0/ /software/projects/director2183/setonix/2023.08/modules/zen3/gcc/12.2.0 /software/setonix/2023.08/modules/zen3/gcc/12.2.0/libraries
-module load msfitslib/devel 
+# module load msfitslib/devel 
+module load ${pipeline_module} 
 
 n_avg=128
 if [[ -n "$1" && "$1" != "-" ]]; then
