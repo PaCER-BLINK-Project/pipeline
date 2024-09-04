@@ -29,15 +29,22 @@ if [[ -n "$2" && "$2" != "-" ]]; then
    list=$2
 fi
 
+t_str=00000
+if [[ -n "$3" && "$3" != "-" ]]; then
+   t_str=$3
+fi
+
+
 fits_count=`cat $list|wc -l`
 start_index=0
 while [[ $start_index -lt $fits_count ]];
 do
    i_str=`echo $start_index | awk '{printf("%05d\n",$1);}'`
-   awk -v n_avg=$n_avg -v start=${start_index} '{if(NR>start && NR<(start+n_avg+1)){print $0;}}' $list > avg_list_${i_str}
+   awk -v n_avg=$n_avg -v start=${start_index} '{if(NR>start && NR<(start+n_avg+1)){print $0;}}' $list > avg_list_time${t_str}_ch${i_str}
    
-   echo "avg_images avg_list_${i_str} avg_${i_str}.fits rms_${i_str}.fits -r 10000000.00"
-   avg_images avg_list_${i_str} avg_${i_str}.fits rms_${i_str}.fits -r 10000000.00
+   echo "avg_images avg_list_time${t_str}_ch${i_str} avg_time${t_str}_ch${i_str}.fits rms_time${t_str}_ch${i_str}.fits -r 10000000.00"
+   avg_images avg_list_time${t_str}_ch${i_str} avg_time${t_str}_ch${i_str}.fits rms_time${t_str}_ch${i_str}.fits -r 10000000.00
    
    start_index=$(($start_index+$n_avg))   
 done
+
