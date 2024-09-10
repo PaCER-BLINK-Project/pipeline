@@ -48,3 +48,8 @@ do
    start_index=$(($start_index+$n_avg))   
 done
 
+
+echo "ls avg_time${t_str}_ch?????.fits > fits_list_${t_str}_avg 2>&1"
+ls avg_time${t_str}_ch?????.fits > fits_list_${t_str}_avg 2>&1
+echo "avg_images fits_list_${t_str}_avg avg_time${t_str}.fits rms_time${t_str}.fits -r 10000000.00"
+avg_images fits_list_${t_str}_avg avg_time${t_str}.fits rms_time${t_str}.fits -r 10000000.00
