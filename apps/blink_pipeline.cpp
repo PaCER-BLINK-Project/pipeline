@@ -82,9 +82,10 @@ int main(int argc, char **argv){
                 obs_info.coarse_channel_index = static_cast<unsigned int>(voltages.size());
                 unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
                 auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps, on_gpu);
-                voltages.push_back(std::make_shared<Voltages>(std::move(volt)));
+                pipeline.run(volt ,opts.FreqChannelToImage);
+                //voltages.push_back(std::make_shared<Voltages>(std::move(volt)));
             }
-            pipeline.run(voltages ,opts.FreqChannelToImage);
+            // pipeline.run(voltages ,opts.FreqChannelToImage);
         }
     }
 }
