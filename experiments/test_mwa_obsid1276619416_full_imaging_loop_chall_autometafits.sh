@@ -77,7 +77,11 @@ if [[ $PAWSEY_CLUSTER = "setonix" ]]; then
    module use /software/projects/director2183/msok/setonix/2023.08/modules/zen3/gcc/12.2.0/ /software/projects/director2183/setonix/2023.08/modules/zen3/gcc/12.2.0 /software/setonix/2023.08/modules/zen3/gcc/12.2.0/libraries
    module load msfitslib/devel   
    module use /software/projects/director2183/msok/setonix/2023.08/modules/zen3/gcc/12.2.0/ /software/projects/director2183/setonix/2023.08/modules/zen3/gcc/12.2.0
-   module load ${pipeline_module} blink_test_data/devel
+   # module load ${pipeline_module} blink_test_data/devel
+   
+   module use /software/setonix/unsupported
+   # module load rocm/5.7.3   
+   module load blink_test_data/devel  blink_astroio_msok/master  blink_correlator_msok/gpu blink-imager-gpu/gpu blink_preprocessing/cpu rocm/5.7.3
 fi
 # salloc --partition gpuq --time 1:00:00 --nodes=1
 
@@ -106,6 +110,9 @@ echo "------------------- preparation completed -------------------"
 
 coarse_channel=$start_coarse_channel
 end_coarse_channel=$(($start_coarse_channel+24))
+
+echo "Start date:"
+date
 
 while [[ $coarse_channel -lt $end_coarse_channel ]];
 do
@@ -150,8 +157,10 @@ do
    # gps2ux! 1276619418
    # 1592584200
    # was -U 1592584240
-   echo "$pipeline_path -c ${avg_channels} -C ${start_fine_channel_param} -t ${inttime_ms}ms -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U $uxtime -w N -v 100 -r -L -G -s calsolutions -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125 ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1"
-   $pipeline_path -c ${avg_channels} -C ${start_fine_channel_param} -t ${inttime_ms}ms -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U $uxtime -w N -v 100 -r -L -G -s calsolutions -r -V 100 -A 21,25,58,71,80,81,92,101,108,114,119,125 ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1
+   # verbose/files : 100 -> 0
+   verbose=100
+   echo "time $pipeline_path -c ${avg_channels} -C ${start_fine_channel_param} -t ${inttime_ms}ms -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U $uxtime -w N -v ${verbose} -r -L -G -s calsolutions -r -V ${verbose} -A 21,25,58,71,80,81,92,101,108,114,119,125 ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1"
+   time $pipeline_path -c ${avg_channels} -C ${start_fine_channel_param} -t ${inttime_ms}ms -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U $uxtime -w N -v ${verbose} -r -L -G -s calsolutions -r -V ${verbose} -A 21,25,58,71,80,81,92,101,108,114,119,125 ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1
    
    coarse_channel=$(($coarse_channel+1))
 done
@@ -163,3 +172,7 @@ module load msfitslib/devel
 ls ch???/test_image_time??????_ch?????_real.fits > fits_list_all
 echo "avg_images fits_list_all avg_all.fits rms_all.fits -r 10000000.00"
 avg_images fits_list_all avg_all.fits rms_all.fits -r 10000000.00
+
+
+echo "End date:"
+date
