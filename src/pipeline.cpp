@@ -224,8 +224,8 @@ void blink::Pipeline::run( const Voltages& input, int freq_channel){
             printf("DEBUG : starting imager using xcorr structure ( frequency = %d , frequencyMHz = %.6f [MHz] -> channel frequency = %.6f [MHz] )\n",frequency,frequencyMHz,channel_frequency_MHz);
             char szOutImage[64];
             sprintf(szOutImage,"test_image_time%06d_ch%05d",integrationInterval,frequency);
-            imager.SetDebugLevel(100);
-            imager.SetFileLevel(100);
+//            imager.SetDebugLevel(100);
+//            imager.SetFileLevel(100);
             imager.run_imager( xcorr, integrationInterval, frequency, channel_frequency_MHz, imageSize, FOV_degrees, 
                                  MinUV, true, true, szWeighting.c_str(), szOutImage, false);
          }
