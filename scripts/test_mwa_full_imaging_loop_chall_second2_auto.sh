@@ -9,8 +9,8 @@
 #SBATCH --ntasks-per-node=1        # Set this for 1 mpi task per compute device
 #SBATCH --gres=gpu:1
 #SBATCH --gpu-bind=closest         # Bind each MPI taks to the nearest GPU
-#SBATCH --output=./image_mwa_obsid1276619416_allch_gpu_setonix.o%j
-#SBATCH --error=./image_mwa_obsid1276619416_allch_gpu_setonix.e%j
+#SBATCH --output=./image_mwa_allch_gpu_setonix.o%j
+#SBATCH --error=./image_mwa_allch_gpu_setonix.e%j
 #SBATCH --export=NONE
 
 is_one_of () {
@@ -39,6 +39,9 @@ channel_selection=""
 #   channel_selection="$2"
 #fi
 
+if [[ -n "$3" && $3 != "-" ]]; then
+   start_coarse_channel=$3
+fi
 
 
 echo "####################################################"
@@ -75,15 +78,8 @@ if [[ $PAWSEY_CLUSTER = "setonix" ]]; then
 fi
 # salloc --partition gpuq --time 1:00:00 --nodes=1
 
-if [[ ! -s 20200619163001.metafits ]]; then
-   echo "cp $BLINK_TEST_DATADIR/mwa/${obsid}/20200619163001.metafits ."
-   cp $BLINK_TEST_DATADIR/mwa/${obsid}/20200619163001.metafits .
-else
-   echo "INFO : file 20200619163001.metafits already exists"
-fi   
-
-echo "cp $BLINK_TEST_DATADIR/mwa/${obsid}/calsolutions_chan*_xx.txt ."
-cp $BLINK_TEST_DATADIR/mwa/${obsid}/calsolutions_chan*_xx.txt .
+# echo "cp $BLINK_TEST_DATADIR/mwa/${obsid}/calsolutions_chan*_xx.txt ."
+# cp $BLINK_TEST_DATADIR/mwa/${obsid}/calsolutions_chan*_xx.txt .
 
 echo "------------------- preparation completed -------------------"
 
@@ -103,11 +99,13 @@ do
    fi
    freq_mhz=`echo $ch | awk -v coarse_channel=${coarse_channel} -v fine_bw=${fine_bw} '{freq_mhz=coarse_channel*1.28;printf("%.4f\n",freq_mhz);}'`
    echo "INFO : processing coarse_channel = $coarse_channel -> freq_mhz = $freq_mhz"      
-
+ 
+   echo "DEBUG : checking file /scratch/mwavcs/msok/${obsid}/combined/${obsid}_${second}_ch${coarse_channel}.dat ..."
    if [[ -s /scratch/mwavcs/msok/${obsid}/combined/${obsid}_${second}_ch${coarse_channel}.dat ]]; then   
       echo "ln -sf /scratch/mwavcs/msok/${obsid}/combined/${obsid}_${second}_ch${coarse_channel}.dat"
       ln -sf /scratch/mwavcs/msok/${obsid}/combined/${obsid}_${second}_ch${coarse_channel}.dat
    else
+      echo "WARNING : file /scratch/mwavcs/msok/${obsid}/combined/${obsid}_${second}_ch${coarse_channel}.dat not found"
       if [[ -s $BLINK_TEST_DATADIR/mwa/${obsid}/voltages/${obsid}_${second}_ch${coarse_channel}.dat ]]; then
          echo "ln -sf $BLINK_TEST_DATADIR/mwa/${obsid}/voltages/${obsid}_${second}_ch${coarse_channel}.dat"
          ln -sf $BLINK_TEST_DATADIR/mwa/${obsid}/voltages/${obsid}_${second}_ch${coarse_channel}.dat      
@@ -133,7 +131,7 @@ do
    # gps2ux! 1276619419
    # 1592584201
    # was -U 1592584240
-   verbose=1
+   verbose=100
    echo "time $pipeline_path -c 4 -C ${start_fine_channel_param} -t 1.00s -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U ${ux}  -w N -v ${verbose} -r -L -G -s calsolutions -r -V ${verbose} -A 21,25,58,71,80,81,92,101,108,114,119,125 ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1"
    time $pipeline_path -c 4 -C ${start_fine_channel_param} -t 1.00s -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U ${ux} -w N -v ${verbose} -r -L -G -s calsolutions -r -V ${verbose} -A 21,25,58,71,80,81,92,101,108,114,119,125 ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1
    

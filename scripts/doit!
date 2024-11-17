@@ -1,0 +1,6 @@
+#!/bin/bash
+
+getmeta! 1260302416
+sbatch ./test_mwa_full_imaging_loop_chall_second2_auto.sh 1260302418 1260302416 109
+
+
