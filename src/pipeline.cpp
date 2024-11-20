@@ -74,7 +74,7 @@ void ConvertXCorr2Fits(Visibilities& xcorr, CBgFits& vis_re, CBgFits& vis_im, in
 
 
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
-    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime, vector<int>& flagged_antennas, std::string& output_dir){
+    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, blink::DataType inputType, vector<int>& flagged_antennas, std::string& output_dir){
 
     // set imager parameters according to options :    
     // no if here - assuming always true :
@@ -90,7 +90,6 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->szWeighting = szWeighting;
     this->bZenithImage = bZenithImage;
     this->inputDataType = inputType;
-    this->frequencyMHz = frequencyMHz;
     this->FOV_degrees = FOV_degrees;
     this->reorder = reorder;
     this->output_dir = output_dir;
@@ -103,8 +102,6 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
         imager.m_ImagerParameters.m_bConstantUVW = false; // when Meta data file is provided it assumes that it will pointed observation (not all sky)
         this->bZenithImage = false;
     }
-    
-    imager.m_ImagerParameters.m_fUnixTime = fUnixTime;
     
    imager.Initialise(0);
    // setting flagged antennas must be called / done after reading METAFITS file:
@@ -138,7 +135,7 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
       auto sol = CalibrationSolutions::from_file(this->calibration_solutions_file);
       apply_solutions(xcorr, sol, obsInfo.coarse_channel_index);
    }
-   
+
    std::cout << "Running imager.." << std::endl;
    auto images = imager.run_imager(xcorr, -1, -1, imageSize, FOV_degrees, 
       MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);

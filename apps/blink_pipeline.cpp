@@ -53,8 +53,8 @@ int main(int argc, char **argv){
         opts.nChannelsToAvg, opts.integrationTime, opts.reorder, opts.szCalibrationSolutionsFile.length() > 0,
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
-        opts.outputDir, opts.bZenithImage, opts.FrequencyMHz, opts.FOV_degrees, opts.inputDataType, 
-        opts.fUnixTime, opts.gFlaggedAntennasList, opts.outputDir
+        opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.inputDataType,
+        opts.gFlaggedAntennasList, opts.outputDir
     };
 
     bool on_gpu = num_available_gpus() > 0;
@@ -76,14 +76,17 @@ int main(int argc, char **argv){
              * the object they point to.
              */
             std::vector<std::shared_ptr<Voltages>> voltages;
+            size_t ch_counter {0ull};
             for(auto& dat_file : one_second_data){
                 std::string& filename {dat_file.first};
                 ObservationInfo obs_info {dat_file.second};
-                obs_info.coarse_channel_index = static_cast<unsigned int>(voltages.size());
+                obs_info.coarse_channel_index = ch_counter++;
                 unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
-                auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps, on_gpu);
+                std::cout << "Pipeline: reading in " << filename << std::endl;
+                auto volt = Voltages::from_dat_file_gpu(filename, obs_info, integration_steps, on_gpu);
                 pipeline.run(volt ,opts.FreqChannelToImage);
-                //voltages.push_back(std::make_shared<Voltages>(std::move(volt)));
+
+                //voltages.emplace_back(std::make_shared<Voltages>(std::move(volt)));
             }
             // pipeline.run(voltages ,opts.FreqChannelToImage);
         }
@@ -111,7 +114,6 @@ void print_help(std::string exec_name, blink::ProgramOptions& opts ){
     "Valid unit of times are: 'ms', 'cs', 'ds', and 's'.\n"
     "\n\n\n\nImager options:\n"
     "\t-p POSTFIX : default is not postfix it's added to basename specified with VISIBILITY_FITS_BASENAME\n"
-    "\t-f FREQ_MHz     : frequency in MHz [default 159.375 MHz]\n" // should be opts.FrequencyMHz but I am not used to cout 
     "\t-F FoV[deg]     : field of view in degrees [default 180 degree]\n" // should be opts.FOV_degrees but I am not used to cout
     "\t-w WEIGHTING    : change weighting schema N - natural, U - uniform [default N]\n" // should be opts.szWeighting    
     "\t-m MIN_UV_DISTANCE : minimum UV distance in wavelengths for a baseline to be included [default -1000]\n" // change to opts.MinUV
@@ -120,8 +122,7 @@ void print_help(std::string exec_name, blink::ProgramOptions& opts ){
     "\t-n IMAGE_SIZE : single value N for image size N x N pixels [default 128]\n" // change to opts.ImageSize
     "\t-Z : image phase centered at zenith, re-calculation of UVW is not required\n" 
     "\t-S : print statistics of the final sky image (mean,median,rms,rms_iqr etc)\n"
-    "\t-M META_DATA_FILE : name of meta data file\n"    
-    "\t-U unixtime : unix time of the start of the data [default none -> use current time]\n"
+    "\t-M META_DATA_FILE : name of meta data file\n"
     "\t-v VERBOSITY/DEBUG level [default ??? ]\n" // TO-ADD CPacerImager::m_ImagerDebugLevel but I am not used to cout 
     "\t-V FILE_SAVE_LEVEL : to control number of FITS files saved [default ???]\n" // TO-ADD CPacerImager::m_SaveFilesLevel I am not used to cout 
     "\t-C frequency_channel to image [default -1 - means all]\n"
@@ -152,7 +153,7 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:f:F:n:U:v:w:V:C:GLA:b:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:GLA:b:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -239,10 +240,6 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
                 break;
 
             }
-            case 'f' : {
-                opts.FrequencyMHz = atof(optarg);
-                break;
-            }
             case 'F': {
                 opts.FOV_degrees = atof(optarg);
                 break;
@@ -250,13 +247,6 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
             case 'n': {
                 opts.ImageSize = atoi(optarg);
                 break;
-            }
-            
-            case 'U' : {
-               if( optarg && strlen(optarg) ){
-                   opts.fUnixTime = atof( optarg );
-               }
-               break;
             }
             
             case 'w' : {

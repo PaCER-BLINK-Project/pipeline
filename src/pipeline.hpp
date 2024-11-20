@@ -29,7 +29,6 @@ namespace blink {
         std::string szFlaggedAntennasListString;
         std::string szCalibrationSolutionsFile;
         std::vector<int> szFlaggedAntennasList;
-        double FrequencyMHz;
         double FOV_degrees;
         std::string MetaDataFile;
         std::string ImagerOutFilePostfix;
@@ -40,7 +39,6 @@ namespace blink {
         bool bZenithImage;
         // all-sky EDA2-like image
         DataType inputDataType;
-        double fUnixTime;
         int FreqChannelToImage;
         
         // flagging antennas:
@@ -93,7 +91,7 @@ namespace blink {
         Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
                   int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, 
                   bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
-                  double frequencyMHz, double FOV_degrees, blink::DataType inputType, double fUnixTime,
+                  double FOV_degrees, blink::DataType inputType,
                   vector<int>& flagged_antennas, std::string& output_dir
                 );
         
