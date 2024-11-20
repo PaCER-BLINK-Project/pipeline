@@ -53,7 +53,7 @@ int main(int argc, char **argv){
         opts.nChannelsToAvg, opts.integrationTime, opts.reorder, opts.szCalibrationSolutionsFile.length() > 0,
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
-        opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.inputDataType,
+        opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.inputDataType, opts.averageImages,
         opts.gFlaggedAntennasList, opts.outputDir
     };
 
@@ -127,7 +127,8 @@ void print_help(std::string exec_name, blink::ProgramOptions& opts ){
     "\t-V FILE_SAVE_LEVEL : to control number of FITS files saved [default ???]\n" // TO-ADD CPacerImager::m_SaveFilesLevel I am not used to cout 
     "\t-C frequency_channel to image [default -1 - means all]\n"
     "\t-G : apply geometric correction\n"
-    "\t-L : apply cable correction\n"  
+    "\t-L : apply cable correction\n"
+    "'t-u : average images across frequency channels and timesteps.\n"
     "\t"
     << std::endl;
 }
@@ -148,12 +149,13 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
     opts.reorder = false;
     opts.bPrintImageStatistics = false;
     opts.FreqChannelToImage = -1; // image all channels
+    opts.averageImages = false;
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:GLA:b:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:GLA:b:u";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -268,6 +270,11 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
                   CPacerImager::SetFileLevel( atol( optarg ) );
                }
                break; 
+            }
+
+            case 'u': {
+                opts.averageImages = true;
+                break;
             }
 
             default : {

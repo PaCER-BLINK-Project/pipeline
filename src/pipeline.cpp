@@ -74,7 +74,7 @@ void ConvertXCorr2Fits(Visibilities& xcorr, CBgFits& vis_re, CBgFits& vis_im, in
 
 
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
-    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, blink::DataType inputType, vector<int>& flagged_antennas, std::string& output_dir){
+    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, blink::DataType inputType, bool averageImages, vector<int>& flagged_antennas, std::string& output_dir){
 
     // set imager parameters according to options :    
     // no if here - assuming always true :
@@ -95,6 +95,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->output_dir = output_dir;
     imager.m_ImagerParameters.SetGlobalParameters(szAntennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
     imager.m_ImagerParameters.m_szOutputDirectory = outputDir.c_str();
+    imager.m_ImagerParameters.averageImages = averageImages;
 
 
     if(strlen(metadataFile.c_str())){

@@ -37,6 +37,7 @@ namespace blink {
         bool bPrintImageStatistics;
         std::string szWeighting;
         bool bZenithImage;
+        bool averageImages;
         // all-sky EDA2-like image
         DataType inputDataType;
         int FreqChannelToImage;
@@ -91,7 +92,7 @@ namespace blink {
         Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
                   int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, 
                   bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
-                  double FOV_degrees, blink::DataType inputType,
+                  double FOV_degrees, blink::DataType inputType, bool averageImages,
                   vector<int>& flagged_antennas, std::string& output_dir
                 );
         
