@@ -43,12 +43,34 @@ if [[ -n "$3" && $3 != "-" ]]; then
    start_coarse_channel=$3
 fi
 
+if [[ -s ${obsid}.metafits ]]; then
+   echo "INFO : metafits file ${obsid}.metafits found"
+else
+   echo "WARNING : metafits file ${obsid}.metafits not found -> downloading"
+   url="http://ws.mwatelescope.org/metadata/fits?obs_id="
+   wget ${url}${obsid} -O ${obsid}.metafits      
+fi
+
+# 21,25,58,71,80,81,92,101,108,114,119,125 for obsID = 1276619416
+flagged_antennas="19,52,73,78,88,105,107,118,122,125" # for obsID = 1141224136
+flag_file=${obsid}_flagged_tiles.txt
+if [[ -s ${flag_file} ]]; then
+   echo "INFO : found flagged antennas file ${flag_file} -> using these antennas"
+   flagged_antennas=`awk '{printf("%s,",$1);}' ${obsid}_flagged_tiles.txt`
+else
+   echo "WARNING : flag file ${obsid}_flagged_tiles.txt not found - will use default list of antennas to flag $flagged_antennas (for obsID=1141224136)"
+fi
+
+if [[ -n "$4" && $4 != "-" ]]; then
+   flagged_antennas="$4"
+fi
 
 echo "####################################################"
 echo "PARAMETERS :"
 echo "####################################################"
 echo "second = $second ( ux = $ux )"
 echo "obsid  = $obsid" 
+echo "flagged_antennas = $flagged_antennas"
 echo "####################################################"
 
 
@@ -132,8 +154,8 @@ do
    # 1592584201
    # was -U 1592584240
    verbose=100
-   echo "time $pipeline_path -c 4 -C ${start_fine_channel_param} -t 1.00s -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U ${ux}  -w N -v ${verbose} -r -L -G -s calsolutions -r -V ${verbose} -A 21,25,58,71,80,81,92,101,108,114,119,125 ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1"
-   time $pipeline_path -c 4 -C ${start_fine_channel_param} -t 1.00s -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U ${ux} -w N -v ${verbose} -r -L -G -s calsolutions -r -V ${verbose} -A 21,25,58,71,80,81,92,101,108,114,119,125 ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1
+   echo "time $pipeline_path -c 4 -C ${start_fine_channel_param} -t 1.00s -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U ${ux}  -w N -v ${verbose} -r -L -G -s calsolutions -r -V ${verbose} -A ${flagged_antennas} ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1"
+   time $pipeline_path -c 4 -C ${start_fine_channel_param} -t 1.00s -o ch -n 8192 -f ${freq_mhz} -F 30 -M ${obsid}.metafits -u -U ${ux} -w N -v ${verbose} -r -L -G -s calsolutions -r -V ${verbose} -A ${flagged_antennas} ${obsid}_${second}_ch${coarse_channel}.dat > ${coarse_channel}.out 2>&1
    
    coarse_channel=$(($coarse_channel+1))
 done
