@@ -51,25 +51,55 @@ else
    wget ${url}${obsid} -O ${obsid}.metafits      
 fi
 
+calid=-1
+if [[ -n "$4" && $4 != "-" ]]; then
+   calid=$4
+fi
+
+if [[ $calid -gt 0 ]]; then
+   echo "INFO : calid = $calid"
+   wget "http://ws.mwatelescope.org/calib/get_calfile_for_calid?cal_id=${calid}&zipfile=1&add_request=1${options}" -O solutions.zip
+   
+   echo "unzip solutions.zip"
+   unzip solutions.zip
+else
+   echo "INFO : calid not specified (<= 0)"
+   
+   wget "http://ws.mwatelescope.org/calib/get_calfile_for_obsid?obs_id=${obsid}&zipfile=1&add_request=1${options}" -O solutions.zip
+
+   echo "unzip solutions.zip"
+   unzip solutions.zip
+
+   binfile=`ls -lt *.bin | tail -1`
+   calid=${binfile%%.bin}   
+fi
+
+
 # 21,25,58,71,80,81,92,101,108,114,119,125 for obsID = 1276619416
 flagged_antennas="19,52,73,78,88,105,107,118,122,125" # for obsID = 1141224136
-flag_file=${obsid}_flagged_tiles.txt
+flag_file=${calid}_flagged_tiles.txt
+if [[ ! -s ${flag_file} ]]; then
+   flag_file=`ls *_flagged_tiles.txt | tail -1`
+fi
+
 if [[ -s ${flag_file} ]]; then
    echo "INFO : found flagged antennas file ${flag_file} -> using these antennas"
-   flagged_antennas=`awk '{printf("%s,",$1);}' ${obsid}_flagged_tiles.txt`
+   flagged_antennas=`awk '{printf("%s,",$1);}' ${flag_file}`
 else
    echo "WARNING : flag file ${obsid}_flagged_tiles.txt not found - will use default list of antennas to flag $flagged_antennas (for obsID=1141224136)"
 fi
 
-if [[ -n "$4" && $4 != "-" ]]; then
-   flagged_antennas="$4"
+if [[ -n "$5" && $5 != "-" ]]; then
+   flagged_antennas="$5"
 fi
+
 
 echo "####################################################"
 echo "PARAMETERS :"
 echo "####################################################"
 echo "second = $second ( ux = $ux )"
 echo "obsid  = $obsid" 
+echo "calid  = $calid"
 echo "flagged_antennas = $flagged_antennas"
 echo "####################################################"
 
