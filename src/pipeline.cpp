@@ -105,6 +105,19 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     }
     
    imager.Initialise(0);
+   
+ /* The following must be done in the imager
+   if( opts.bChangePhaseCentre ){
+      double obsid = -1;
+      if( CImagerParameters::m_bAutoFixMetaData ){
+         obsid = CObsMetadata::ux2gps( imager.m_ImagerParameters.m_fUnixTime );
+      }
+
+      imager.m_MetaData.set_radec( obsid, opts.fRAdeg, opts.fDECdeg );
+      printf("DEBUG : set RADEC of phase centre to (%.8f,%.8f) at obsid = %.2f\n",opts.fRAdeg,opts.fDECdeg,obsid);
+   }
+   */
+   
    // setting flagged antennas must be called / done after reading METAFITS file:
    if( flagged_antennas.size() > 0 ){
        imager.SetFlaggedAntennas( flagged_antennas );

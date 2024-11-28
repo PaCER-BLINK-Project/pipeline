@@ -42,6 +42,11 @@ namespace blink {
         DataType inputDataType;
         int FreqChannelToImage;
         
+        // change phase centre
+        bool bChangePhaseCentre;
+        double fRAdeg;
+        double fDECdeg;
+        
         // flagging antennas:
         string gFlaggedAntennasListString;
         vector<int> gFlaggedAntennasList;
