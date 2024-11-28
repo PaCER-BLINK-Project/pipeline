@@ -136,6 +136,16 @@ blink::Pipeline::Pipeline(ProgramOptions& opts, unsigned int nChannelsToAvg, dou
    // imager.SetFlaggedAntennas( flagged_antennas );
    imager.Initialise();
    
+   if( opts.bChangePhaseCentre ){
+      double obsid = -1;
+      if( CImagerParameters::m_bAutoFixMetaData ){
+         obsid = CObsMetadata::ux2gps( imager.m_ImagerParameters.m_fUnixTime );
+      }
+
+      imager.m_MetaData.set_radec( obsid, opts.fRAdeg, opts.fDECdeg );
+      printf("DEBUG : set RADEC of phase centre to (%.8f,%.8f) at obsid = %.2f\n",opts.fRAdeg,opts.fDECdeg,obsid);
+   }
+   
    // setting flagged antennas must be called / done after reading METAFITS file:
    if( flagged_antennas.size() > 0 ){
        imager.SetFlaggedAntennas( flagged_antennas );
@@ -212,13 +222,15 @@ void blink::Pipeline::run( const Voltages& input, int freq_channel){
          
             //----------------------------------------------------------------
             // MS : 20230914 - temporary test code:
-            CBgFits vis_re(128,128),vis_im(128,128);
-            char szOutPutFits[1024];
-            ConvertXCorr2Fits( xcorr, vis_re, vis_im, integrationInterval, frequency, imager.m_ImagerParameters.m_szOutputDirectory.c_str() );
-            sprintf(szOutPutFits,"%s/re.fits",imager.m_ImagerParameters.m_szOutputDirectory.c_str());
-            vis_re.WriteFits( szOutPutFits );
-            sprintf(szOutPutFits,"%s/im.fits",imager.m_ImagerParameters.m_szOutputDirectory.c_str());
-            vis_im.WriteFits( szOutPutFits );
+            if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
+               CBgFits vis_re(128,128),vis_im(128,128);
+               char szOutPutFits[1024];
+               ConvertXCorr2Fits( xcorr, vis_re, vis_im, integrationInterval, frequency, imager.m_ImagerParameters.m_szOutputDirectory.c_str() );
+               sprintf(szOutPutFits,"%s/re.fits",imager.m_ImagerParameters.m_szOutputDirectory.c_str());
+               vis_re.WriteFits( szOutPutFits );
+               sprintf(szOutPutFits,"%s/im.fits",imager.m_ImagerParameters.m_szOutputDirectory.c_str());
+               vis_im.WriteFits( szOutPutFits );
+            }
             //----- end of temporary test code
 
             printf("DEBUG : starting imager using xcorr structure ( frequency = %d , frequencyMHz = %.6f [MHz] -> channel frequency = %.6f [MHz] )\n",frequency,frequencyMHz,channel_frequency_MHz);

@@ -110,6 +110,7 @@ void print_help(std::string exec_name, blink::ProgramOptions& opts ){
     "\t-C frequency_channel to image [default -1 - means all]\n"
     "\t-G : apply geometric correction\n"
     "\t-L : apply cable correction\n"  
+    "\t-P : set phase centre to RA_DEG,DEC_DEG, example -P 148.2875,7.92638889 to have B0950+08 in the phase centre\n"
     "\t"
     << std::endl;
 }
@@ -131,12 +132,15 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
     opts.bPrintImageStatistics = false;
     opts.FreqChannelToImage = -1; // image all channels 
     opts.ApplyCalibrationInImager = true; // default to apply calibration in the imager
+    opts.bChangePhaseCentre = false;
+    opts.fRAdeg = 0.00;
+    opts.fDECdeg = 0.00;
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:f:F:n:U:v:w:V:C:GLA:bu";
+    const char *options = "rt:c:o:a:M:Zi:s:f:F:n:U:v:w:V:C:GLA:buP:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -235,6 +239,21 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
                 opts.ImageSize = atoi(optarg);
                 break;
             }
+
+            case 'P' : {
+               if( optarg && strlen(optarg) ){
+                   char szTmp[64];
+                   strcpy(szTmp,optarg);
+                   const char* szRA = strtok(szTmp,",");
+                   opts.fRAdeg = atof(szRA);
+                   const char* szDEC = strtok(NULL,",");
+                   opts.fDECdeg = atof(szDEC);
+                   opts.bChangePhaseCentre = true;
+                   printf("DEBUG : changing phase centre to (RA,DEC) = (%.8f,%.8f) [deg]\n",opts.fRAdeg,opts.fDECdeg);
+               }
+               break;
+            }
+
             
             case 'U' : {
                if( optarg && strlen(optarg) ){

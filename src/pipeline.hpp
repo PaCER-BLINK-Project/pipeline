@@ -46,6 +46,11 @@ namespace blink {
         int FreqChannelToImage;
         bool ApplyCalibrationInImager;
         
+        // change phase centre
+        bool bChangePhaseCentre;
+        double fRAdeg;
+        double dDECdeg;
+        
         // flagging antennas:
         string gFlaggedAntennasListString;
         vector<int> gFlaggedAntennasList;
