@@ -49,7 +49,7 @@ namespace blink {
         // change phase centre
         bool bChangePhaseCentre;
         double fRAdeg;
-        double dDECdeg;
+        double fDECdeg;
         
         // flagging antennas:
         string gFlaggedAntennasListString;
