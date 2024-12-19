@@ -5,6 +5,7 @@ include(CTest)
 
 option(USE_CUDA "Compile the code with NVIDIA GPU support." OFF)
 option(USE_HIP "Compile the code with AMD GPU support." OFF)
+option(USE_OPENMP "Compile with OpenMP enabled." ON)
 
 if(USE_CUDA)
 enable_language(CUDA CXX)
@@ -61,11 +62,6 @@ add_library(pipeline SHARED ${pipeline_sources})
 set_target_properties(pipeline PROPERTIES PUBLIC_HEADER "${pipeline_headers}")
 target_link_libraries(pipeline ${CORRELATIONLIB} ${BLINK_ASTROIO} ${BLINK_PREPROCESSING} ${PACERIMAGERLIB} ${MSFITSLIB} ) #${LIBPAL_LIB})
 
-if(USE_OPENMP)
-    find_package(OpenMP REQUIRED)
-    target_link_libraries(pipeline OpenMP::OpenMP_CXX)
-endif()
-
 
 install(TARGETS pipeline
    LIBRARY DESTINATION "lib"
@@ -79,6 +75,12 @@ add_definitions(-D_UNIX -D_PACER_PROFILER_ON_)
 add_executable(blink_pipeline apps/blink_pipeline.cpp)
 target_link_libraries(blink_pipeline pipeline stdc++fs)
 install(TARGETS blink_pipeline DESTINATION "bin")
+
+if(USE_OPENMP)
+    find_package(OpenMP REQUIRED)
+    target_link_libraries(pipeline OpenMP::OpenMP_CXX)
+    target_link_libraries(blink_pipeline OpenMP::OpenMP_CXX)
+endif()
 
 # TESTS
 

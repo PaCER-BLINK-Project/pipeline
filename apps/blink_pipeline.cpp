@@ -77,18 +77,20 @@ int main(int argc, char **argv){
              */
             std::vector<std::shared_ptr<Voltages>> voltages;
             size_t ch_counter {0ull};
-            for(auto& dat_file : one_second_data){
+            #pragma omp parallel for schedule(static)
+            for(size_t i = 0; i < one_second_data.size(); i++){
+                auto dat_file = one_second_data[i];
                 std::string& filename {dat_file.first};
                 ObservationInfo obs_info {dat_file.second};
-                obs_info.coarse_channel_index = ch_counter++;
+                obs_info.coarse_channel_index = i;
                 unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
-                std::cout << "Pipeline: reading in " << filename << std::endl;
-                auto volt = Voltages::from_dat_file_gpu(filename, obs_info, integration_steps, on_gpu);
-                pipeline.run(volt ,opts.FreqChannelToImage);
-
-                //voltages.emplace_back(std::make_shared<Voltages>(std::move(volt)));
+                // std::cout << "Pipeline: reading in " << filename << std::endl;
+                auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps, false);
+                // pipeline.run(volt ,opts.FreqChannelToImage);
+                #pragma omp critical
+                voltages.emplace_back(std::make_shared<Voltages>(std::move(volt)));
             }
-            // pipeline.run(voltages ,opts.FreqChannelToImage);
+            pipeline.run(voltages ,opts.FreqChannelToImage);
         }
     }
 }
