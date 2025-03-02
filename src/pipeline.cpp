@@ -6,7 +6,10 @@
 #include <cstring>
 #include <sstream>
 #include <memory>
+#include <chrono>
 // #include <filesystem>
+
+using namespace std::chrono;
 
 #include <correlation.hpp>
 #include <calibration.hpp>
@@ -124,6 +127,14 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
    }
 }
 
+void blink::Pipeline::save_image(const Voltages& r) {
+   high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
+   auto images = imager.final_image(r, imageSize);
+   images.to_fits_files(output_dir);
+   high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
+   duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
+   std::cout << "Saving image took " << save_image_dur.count() << " seconds." << std::endl;
+}
 
 void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs, int freq_channel /*=-1*/ ){
    for(const auto& input : inputs){
@@ -153,7 +164,7 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
    std::cout << "Running imager.." << std::endl;
    auto images = imager.run_imager(xcorr, -1, -1, imageSize, FOV_degrees, 
       MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
-   std::cout << "Saving images to disk..." << std::endl;
-   images.to_fits_files(output_dir);
+   // std::cout << "Saving images to disk..." << std::endl;
+   // images.to_fits_files(output_dir);
 }
 

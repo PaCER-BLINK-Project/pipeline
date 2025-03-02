@@ -103,6 +103,7 @@ namespace blink {
         
         void run(const Voltages& input, int freq_channel = -1);
         void run(const std::vector<std::shared_ptr<Voltages>>& inputs, int freq_channel = -1);
+        void save_image(const Voltages& r);
 
     };
 }

@@ -30,7 +30,7 @@ source "${BASH_UTILS_DIR}/build_utils.sh"
 
 
 PROGRAM_NAME=blink-pipeline-${build_type}
-PROGRAM_VERSION=cristian-dev
+PROGRAM_VERSION=cristian-onegrid
 
  
 # the following function sets up the installation path according to the
@@ -48,7 +48,7 @@ process_build_script_input user #group
 echo "Loading required modules ..."=
 module reset
 module load cmake/3.27.7
-print_run module_load blink_test_data/devel  blink_astroio/master  blink_correlator/master blink-imager-gpu/cristian-dev blink_preprocessing/main rocm/5.7.3
+print_run module_load blink_test_data/devel   blink_correlator/master blink_astroio/master  blink-imager-gpu/cristian-onegrid blink_preprocessing/main rocm/5.7.3
 #print_run module_load blink_test_data/devel  blink_astroio/master  blink_correlator/master blink-imager-gpu/main-fixed blink_preprocessing/main rocm/5.7.3
 if [[ $build_type == "gpu" ]]; then
    MORE_CMAKE_OPTIONS="-DUSE_HIP=ON"

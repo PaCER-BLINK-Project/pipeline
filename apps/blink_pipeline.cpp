@@ -67,6 +67,7 @@ int main(int argc, char **argv){
         pipeline.run(volt ,opts.FreqChannelToImage);
     }else{
         auto observation = parse_mwa_dat_files(opts.input_files);
+        std::vector<std::shared_ptr<Voltages>> voltages;
         for (auto& one_second_data : observation) {
             /* the std::vector memory allocator progressively allocates larger chunk of memory to
              * make space for new elements, copying existing elements to the new memory location.
@@ -75,8 +76,9 @@ int main(int argc, char **argv){
              * In this way, smart pointers are the ones being copied over and over, instead of
              * the object they point to.
              */
-            std::vector<std::shared_ptr<Voltages>> voltages;
+            voltages.clear();
             size_t ch_counter {0ull};
+            high_resolution_clock::time_point read_volt_start = high_resolution_clock::now();
             #pragma omp parallel for schedule(static)
             for(size_t i = 0; i < one_second_data.size(); i++){
                 auto dat_file = one_second_data[i];
@@ -85,13 +87,17 @@ int main(int argc, char **argv){
                 obs_info.coarse_channel_index = i;
                 unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
                 // std::cout << "Pipeline: reading in " << filename << std::endl;
-                auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps, false);
+                auto volt = Voltages::from_dat_file_gpu(filename, obs_info, integration_steps, false);
                 // pipeline.run(volt ,opts.FreqChannelToImage);
                 #pragma omp critical
                 voltages.emplace_back(std::make_shared<Voltages>(std::move(volt)));
             }
+            high_resolution_clock::time_point read_volt_end = high_resolution_clock::now();
+            duration<double> volt_dur = duration_cast<duration<double>>(read_volt_end - read_volt_start);
+            std::cout << "Reading voltages took " << volt_dur.count() << " seconds." << std::endl;
             pipeline.run(voltages ,opts.FreqChannelToImage);
         }
+        pipeline.save_image(*voltages[0]);
     }
 }
 
