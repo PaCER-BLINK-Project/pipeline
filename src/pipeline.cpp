@@ -14,6 +14,7 @@
 #include <pacer_imager_defs.h>
 #include "pipeline.hpp"
 #include "files.hpp"
+#include <gpu_macros.hpp>
 
 // MS : 20230914 - temporary test code:
 // TODO : remove this function in the future use complex<double> 
@@ -137,8 +138,12 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
 
    std::cout << "Correlating voltages (OBSID = " << obsInfo.id << ", Coarse Channel = " << obsInfo.coarseChannel << ") .." << std::endl;
    
+   high_resolution_clock::time_point corr_start = high_resolution_clock::now();
    auto xcorr = cross_correlation(input, channels_to_avg);
-   
+   high_resolution_clock::time_point corr_end = high_resolution_clock::now();
+   duration<double> corr_dur = duration_cast<duration<double>>(corr_end - corr_start);
+   std::cout << "Cross correlation took " << corr_dur.count() << " seconds." << std::endl;
+
    if(reorder){
       auto mapping = get_visibilities_mapping(this->MetaDataFile);
 	   xcorr = reorder_visibilities(xcorr, mapping);
@@ -154,6 +159,11 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
    auto images = imager.run_imager(xcorr, -1, -1, imageSize, FOV_degrees, 
       MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
    std::cout << "Saving images to disk..." << std::endl;
+   high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
    images.to_fits_files(output_dir);
+   high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
+   duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
+   std::cout << "Saving image took " << save_image_dur.count() << " seconds." << std::endl;
+
 }
 

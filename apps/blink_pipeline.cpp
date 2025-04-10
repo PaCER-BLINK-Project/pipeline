@@ -6,6 +6,7 @@
 #include <cstring>
 #include <sstream>
 #include <memory>
+#include <chrono>
 #include "../src/pipeline.hpp"
 
 #include <pacer_imager.h>
@@ -77,6 +78,7 @@ int main(int argc, char **argv){
              */
             std::vector<std::shared_ptr<Voltages>> voltages;
             size_t ch_counter {0ull};
+            high_resolution_clock::time_point read_volt_start = high_resolution_clock::now();
             #pragma omp parallel for schedule(static)
             for(size_t i = 0; i < one_second_data.size(); i++){
                 auto dat_file = one_second_data[i];
@@ -90,6 +92,9 @@ int main(int argc, char **argv){
                 #pragma omp critical
                 voltages.emplace_back(std::make_shared<Voltages>(std::move(volt)));
             }
+            high_resolution_clock::time_point read_volt_end = high_resolution_clock::now();
+            duration<double> volt_dur = duration_cast<duration<double>>(read_volt_end - read_volt_start);
+            std::cout << "Reading voltages took " << volt_dur.count() << " seconds." << std::endl;
             pipeline.run(voltages ,opts.FreqChannelToImage);
         }
     }
