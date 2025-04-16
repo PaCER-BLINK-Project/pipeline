@@ -12,7 +12,7 @@ enable_language(CUDA CXX)
 endif()
 
 
-if(USE_HIP)
+if(USE_HIP OR USE_CUDA)
     message("INFO : HIP/GPU version")
     add_definitions("-DIMAGER_HIP")
 else()
@@ -57,6 +57,10 @@ endif()
 # Pipeline library
 file(GLOB pipeline_sources "src/*.cpp")
 file(GLOB pipeline_headers "src/*.hpp")
+
+if(USE_CUDA)
+set_source_files_properties( ${pipeline_sources} "apps/blink_pipeline.cpp" PROPERTIES LANGUAGE CUDA)
+endif()
 
 add_library(pipeline SHARED ${pipeline_sources})
 set_target_properties(pipeline PROPERTIES PUBLIC_HEADER "${pipeline_headers}")
