@@ -36,7 +36,7 @@ build_dir=build
 cd ${build_dir}
 # Turns out we need to compile with HIPCC if AstroIO and the other libraries were compiled with GPU support. This is because
 # Voltages and Visibilities classes derive from MemoryBuffer, a template class in a header file make use of GPU calls.
-print_run cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc -DCMAKE_CXX_FLAGS=-O0 -DCMAKE_BUILD_TYPE=Debug
+print_run cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DUSE_HIP=ON -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc -DCMAKE_CXX_FLAGS=-O0 -DCMAKE_BUILD_TYPE=Debug
 make VERBOSE=1
 
 

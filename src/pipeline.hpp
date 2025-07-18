@@ -53,6 +53,23 @@ namespace blink {
         std::string szFlaggedAntennasListString;
         std::vector<int> szFlaggedAntennasList;
         
+        // dedispersion parameters
+        int _current_top_frequency_band_idx {769};
+
+        int sweep_size;
+        int batch_size;
+        int buffer_size;
+        int table_size;
+
+        int window_start_idx {0};
+        // start position of the current batch within the window
+        int window_offset {0};
+
+        std::vector<float> frequencies;
+        std::vector<float> dm_list;
+        std::vector<int> delay_table;
+        MemoryBuffer<float> dm_starttime;
+        
 
         public:        
 
@@ -60,11 +77,13 @@ namespace blink {
                   int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, 
                   bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
                   double FOV_degrees, bool averageImages,
-                  vector<int>& flagged_antennas, std::string& output_dir
+                  vector<int>& flagged_antennas, std::vector<float>& dm_list, std::string& output_dir
                 );
         
-        void run(const Voltages& input, int freq_channel = -1);
-        void run(const std::vector<std::shared_ptr<Voltages>>& inputs, int freq_channel = -1);
+        void run(const Voltages& input);
+        void run(const std::vector<std::shared_ptr<Voltages>>& inputs);
+
+        void set_frequencies(const std::vector<float>& frequencies);
 
     };
 }

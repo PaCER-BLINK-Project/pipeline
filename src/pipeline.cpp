@@ -14,12 +14,23 @@
 #include <pacer_imager_defs.h>
 #include "pipeline.hpp"
 #include "files.hpp"
+#include "dedispersion.hpp"
 #include <gpu_macros.hpp>
 
+void blink::Pipeline::set_frequencies(const std::vector<float>& frequencies){
+   this->frequencies = frequencies;
+   this->delay_table = compute_delay_table(frequencies, dm_list, integration_time);
+   this->sweep_size = this->delay_table[(dm_list.size() - 1) * frequencies.size()] + 1;
+   this->buffer_size = 100; // TODO: come up with a clever way to estimate this dynamically
+   this->table_size = sweep_size + buffer_size;
+   this->dm_starttime.allocate(n_dms * table_size);
+   std::memset(dm_starttime.data(), 0, sizeof(float) * n_dms * table_size);
+}
 
 
+// TODO: we could use an observation info structure here to pass values
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
-    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, vector<int>& flagged_antennas, std::string& output_dir){
+    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, vector<int>& flagged_antennas,  std::vector<float>& dm_list, std::string& output_dir){
 
     // set imager parameters according to options :    
     // no if here - assuming always true :
@@ -37,6 +48,8 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->FOV_degrees = FOV_degrees;
     this->reorder = reorder;
     this->output_dir = output_dir;
+    this->dm_list = dm_list;
+    this->batch_size = static_cast<int>(1.0 / integration_time); // TODO do better than hard conding
     imager.m_ImagerParameters.SetGlobalParameters(szAntennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
     imager.m_ImagerParameters.m_szOutputDirectory = outputDir.c_str();
     imager.m_ImagerParameters.averageImages = averageImages;
@@ -58,13 +71,22 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
 }
 
 
-void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs, int freq_channel /*=-1*/ ){
-   for(const auto& input : inputs){
-      run(*input, freq_channel);
+void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
+   if(window_offset + batch_size > table_size){
+      // Time to use and clear buffer
+      get_elements(dm_starttime.data(), 0, window_start_idx, buffer_size, table_size);
+      // step 3, clear and rotate the buffer
+      clear_buffer(dm_starttime.data(), dm_list.size(), window_start_idx, table_size, buffer_size);
+      window_offset -= buffer_size;
+      window_start_idx = (window_start_idx + buffer_size) % table_size;
    }
+   for(const auto& input : inputs){
+      run(*input);
+   }
+   window_offset += batch_size;
 }
 
-void blink::Pipeline::run(const Voltages& input, int freq_channel){
+void blink::Pipeline::run(const Voltages& input){
    const ObservationInfo& obsInfo {input.obsInfo};
    unsigned int nIntegrationSteps {static_cast<unsigned int>(integration_time / obsInfo.timeResolution)};
 
@@ -90,12 +112,17 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
    std::cout << "Running imager.." << std::endl;
    auto images = imager.run_imager(xcorr, -1, -1, imageSize, FOV_degrees, 
       MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
-   std::cout << "Saving images to disk..." << std::endl;
-   high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
-   images.to_fits_files(output_dir);
-   high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
-   duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
-   std::cout << "Saving image took " << save_image_dur.count() << " seconds." << std::endl;
+   images.to_cpu();
+   // std::cout << "Saving images to disk..." << std::endl;
+   // high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
+   // images.to_fits_files(output_dir);
+   // high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
+   // duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
+   // std::cout << "Saving image took " << save_image_dur.count() << " seconds." << std::endl;
+
+   int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.nFrequencies - 1;
+   compute_partial_dedispersion(images, top_freq_idx, images.nFrequencies,
+      frequencies.size(), batch_size, delay_table.data(), dm_starttime.data(), dm_list.int(), table_size, window_start_idx, window_offset);
 
 }
 
