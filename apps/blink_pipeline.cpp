@@ -16,6 +16,7 @@
 #include <mydate.h>
 #include <mystrtable.h>
 #include <pacer_imager_defs.h>
+#include <dedispersion.hpp>
 #include "../src/files.hpp"
 
 struct ProgramOptions {
@@ -47,10 +48,15 @@ struct ProgramOptions {
     bool bChangePhaseCentre;
     double fRAdeg;
     double fDECdeg;
+    float SNR;
     
     // flagging antennas:
     string gFlaggedAntennasListString;
     vector<int> gFlaggedAntennasList;
+
+    string dm_list_string;
+    vector<float> dm_list;
+
 };
 
 
@@ -58,7 +64,7 @@ void print_program_options(const ProgramOptions& opts);
 void parse_program_options(int argc, char** argv, ProgramOptions& opts);
 void print_help(std::string exec_name, ProgramOptions& opts);
 
-
+std::vector<float> get_frequencies(const std::vector<DatFile>& one_second, int chnls_to_avg);
 
 int main(int argc, char **argv){
     ProgramOptions opts;
@@ -81,7 +87,9 @@ int main(int argc, char **argv){
         }
     }
     print_program_options(opts);
-
+    int n_timesteps {static_cast<int>(1.0 / opts.integrationTime)}; // TODO: generalise to number of time steps
+    blink::dedispersion::Dedispersion dedisp_engine {opts.dm_list, opts.ImageSize,
+        n_timesteps, 2 * n_timesteps, opts.SNR, opts.outputDir};
 
     // TODO : replace all these options to just ProgramOptions& opts - not doing it now !
     blink::Pipeline pipeline  {
@@ -89,7 +97,7 @@ int main(int argc, char **argv){
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages,
-        opts.gFlaggedAntennasList, opts.outputDir
+        opts.gFlaggedAntennasList, dedisp_engine, opts.outputDir
     };
 
     bool on_gpu = num_available_gpus() > 0;
@@ -99,9 +107,14 @@ int main(int argc, char **argv){
         obs_info.coarse_channel_index = opts.coarseChannelIndex;
         unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
         auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps);
-        pipeline.run(volt ,opts.FreqChannelToImage);
+        pipeline.run(volt, 0);
     }else{
         auto observation = parse_mwa_dat_files(opts.input_files);
+        if(opts.dm_list.size() > 0){
+            // enabled dedispersion
+            auto frequencies = get_frequencies(observation[0], opts.nChannelsToAvg);
+            pipeline.dedisp_engine.initialise(frequencies, opts.integrationTime);
+        }
         for (auto& one_second_data : observation) {
             /* the std::vector memory allocator progressively allocates larger chunk of memory to
              * make space for new elements, copying existing elements to the new memory location.
@@ -122,18 +135,34 @@ int main(int argc, char **argv){
                 unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
                 // std::cout << "Pipeline: reading in " << filename << std::endl;
                 auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps);
-                // pipeline.run(volt ,opts.FreqChannelToImage);
                 #pragma omp critical
                 voltages.emplace_back(std::make_shared<Voltages>(std::move(volt)));
             }
             high_resolution_clock::time_point read_volt_end = high_resolution_clock::now();
             duration<double> volt_dur = duration_cast<duration<double>>(read_volt_end - read_volt_start);
             std::cout << "Reading voltages took " << volt_dur.count() << " seconds." << std::endl;
-            pipeline.run(voltages ,opts.FreqChannelToImage);
+            pipeline.run(voltages);
+        }
+        if(pipeline.dedisp_engine.is_initialised()){
+            pipeline.dedisp_engine.process_buffer();
         }
     }
 }
 
+std::vector<float> get_frequencies(const std::vector<DatFile>& one_second, int chnls_to_avg){
+    unsigned int bottom_coarse {one_second[0].second.coarseChannel};
+    unsigned int n_bands = (one_second[0].second.nFrequencies / chnls_to_avg) * one_second.size();
+    std::vector<float> frequencies(n_bands + 1);
+    float coarse_ch_bw = one_second[0].second.coarseChannelBandwidth;
+    float fine_ch_bw = one_second[0].second.frequencyResolution * chnls_to_avg;
+    frequencies[0] = bottom_coarse * coarse_ch_bw - coarse_ch_bw / 2.0;
+    for(int i {1}; i <= n_bands; i++){
+        frequencies[i] = frequencies[i - 1] + fine_ch_bw;
+    }
+    for(int i {0}; i <= n_bands; i++)  frequencies[i] /= 1000.0f;
+    std::cout << "Bottom frequency is " << frequencies[0] << ", top frequency is " << frequencies[frequencies.size() - 1] << std::endl;
+    return frequencies;
+}
 
 
 void print_help(std::string exec_name, ProgramOptions& opts ){
@@ -171,6 +200,8 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-L : apply cable correction\n"
     "'t-u : average images across frequency channels and timesteps.\n"
     "\t-P : set phase centre to RA_DEG,DEC_DEG, example -P 148.2875,7.92638889 to have B0950+08 in the phase centre\n"
+    "\t-D : comma-separated list of DM trials (e.g. -D 0,0.5,1,1.5) \n"
+    "\t-S : Signal to Noise (SNR) threshold level for declaring a detection.\n"
     "\t"
     << std::endl;
 }
@@ -194,12 +225,13 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.bChangePhaseCentre = false;
     opts.fRAdeg = 0.00;
     opts.fDECdeg = 0.00;
+    opts.SNR = 5.0f;
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:GLA:b:uP:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -221,10 +253,21 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
                }
                break;
             }
+
+            case 'D': {
+               if( optarg && strlen(optarg)){
+                  opts.dm_list_string = optarg;
+               }
+               break;
+            }
             
             case 'b' : {
                opts.coarseChannelIndex = atoi(optarg);
                break;
+            }
+            case 'S' : {
+                opts.SNR = atof(optarg);
+                break;
             }
 
             case 'C': {
@@ -242,14 +285,6 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
             }
             case 'o' : {
                 opts.outputDir = std::string {optarg};
-                break;
-            }
-            case 'L' : {
-                CImagerParameters::m_bApplyCableCorr = true;
-                break;
-            }
-            case 'G' : {
-                CImagerParameters::m_bApplyGeomCorr = true;
                 break;
             }            
             case 'M': {
@@ -345,6 +380,29 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
        pars.GetItemsNew( items, "," );
        for(int i=0;i<items.size();i++){
           opts.gFlaggedAntennasList.push_back( atol( items[i].c_str() ) );
+       }
+    }
+
+    if(opts.dm_list_string.length() > 0 ){
+       MyParser pars=opts.dm_list_string.c_str();
+       CMyStrTable items;
+       if(opts.dm_list_string.find(":") != std::string::npos){
+            // dm trials specified with min:max:step
+            pars.GetItemsNew( items, ":" );
+            float dm_start = atof(items[0].c_str());
+            float dm_stop = atof(items[1].c_str());
+            float dm_delta = atof(items[2].c_str());
+            while(dm_start <= dm_stop){
+                std::cout << "DM trial " << dm_start << std::endl;
+                opts.dm_list.push_back(dm_start);
+                dm_start += dm_delta;
+            }
+       }else{
+            // dm trials specified explicitly with a list
+            pars.GetItemsNew( items, "," );
+            for(int i=0;i<items.size();i++){
+                opts.dm_list.push_back( atof(items[i].c_str()));
+            }
        }
     }
 }

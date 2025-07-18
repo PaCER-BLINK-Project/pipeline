@@ -14,16 +14,28 @@
 #include <pacer_imager_defs.h>
 #include "pipeline.hpp"
 #include "files.hpp"
+#include "dedispersion.hpp"
+#include "gpu/dedispersion_gpu.hpp"
+#include "peak_finding.hpp"
 #include <gpu_macros.hpp>
 
 
 
+// TODO: we could use an observation info structure here to pass values
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
-    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, vector<int>& flagged_antennas, std::string& output_dir){
+   double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, vector<int>& flagged_antennas,  Dedispersion& dedisp_engine, std::string& output_dir) : dedisp_engine {dedisp_engine} {
+
+    gpuGetDeviceCount(&num_gpus);
+    if(num_gpus == 0){
+        std::cerr << "No GPU device detected. Aborting.." << std::endl;
+        throw std::exception();
+    }
+    imager.resize(num_gpus);
+    mapping.resize(num_gpus);
+    cal_sol.resize(num_gpus);
 
     // set imager parameters according to options :    
     // no if here - assuming always true :
-    this->imager.m_ImagerParameters.m_bConstantUVW = true; 
     this->channels_to_avg = nChannelsToAvg;
     this->integration_time = integrationTime;
     this->calibrate = calibrate;
@@ -37,65 +49,79 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->FOV_degrees = FOV_degrees;
     this->reorder = reorder;
     this->output_dir = output_dir;
-    imager.m_ImagerParameters.SetGlobalParameters(szAntennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
-    imager.m_ImagerParameters.m_szOutputDirectory = outputDir.c_str();
-    imager.m_ImagerParameters.averageImages = averageImages;
+    this->bZenithImage = false;
 
+    if(calibrate) cal_sol[0] = CalibrationSolutions::from_file(this->calibration_solutions_file);
+    if(reorder) mapping[0] = get_visibilities_mapping(this->MetaDataFile);
 
-    if(strlen(metadataFile.c_str())){
-        imager.m_ImagerParameters.m_MetaDataFile = metadataFile.c_str();
-        imager.m_ImagerParameters.m_bConstantUVW = false; // when Meta data file is provided it assumes that it will pointed observation (not all sky)
-        this->bZenithImage = false;
+    for(int i {0}; i < num_gpus; i++){
+        gpuSetDevice(i);
+        imager[i] = new CPacerImagerHip {metadataFile, flagged_antennas, averageImages};
+        if(i > 0) {
+            if(calibrate) cal_sol[i] = cal_sol[0];
+            if(reorder) mapping[i] = mapping[0];
+        }
+        mapping[i].to_gpu();
+        cal_sol[i].to_gpu();
     }
-    
-   imager.Initialise(0);
-   
-   
-   // setting flagged antennas must be called / done after reading METAFITS file:
-   if( flagged_antennas.size() > 0 ){
-       imager.SetFlaggedAntennas( flagged_antennas );
-   }
 }
 
 
-void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs, int freq_channel /*=-1*/ ){
-   for(const auto& input : inputs){
-      run(*input, freq_channel);
+void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
+    if(dedisp_engine.buffer_is_full())
+        dedisp_engine.process_buffer();
+   
+   #pragma omp parallel for num_threads(num_gpus)
+   for(int i = 0; i < inputs.size(); i++){
+        const auto& input = inputs[i];
+        run(*input, i % num_gpus);
    }
+   dedisp_engine.increase_offset();
 }
 
-void blink::Pipeline::run(const Voltages& input, int freq_channel){
-   const ObservationInfo& obsInfo {input.obsInfo};
-   unsigned int nIntegrationSteps {static_cast<unsigned int>(integration_time / obsInfo.timeResolution)};
+void blink::Pipeline::run(const Voltages& input, int gpu_id){
 
-   std::cout << "Correlating voltages (OBSID = " << obsInfo.id << ", Coarse Channel = " << obsInfo.coarseChannel << ") .." << std::endl;
-   
-   high_resolution_clock::time_point corr_start = high_resolution_clock::now();
-   auto xcorr = cross_correlation(input, channels_to_avg);
-   high_resolution_clock::time_point corr_end = high_resolution_clock::now();
-   duration<double> corr_dur = duration_cast<duration<double>>(corr_end - corr_start);
-   std::cout << "Cross correlation took " << corr_dur.count() << " seconds." << std::endl;
+    gpuSetDevice(gpu_id);
+    const ObservationInfo& obsInfo {input.obsInfo};
+    unsigned int nIntegrationSteps {static_cast<unsigned int>(integration_time / obsInfo.timeResolution)};
 
-   if(reorder){
-      auto mapping = get_visibilities_mapping(this->MetaDataFile);
-	   xcorr = reorder_visibilities(xcorr, mapping);
-   }
+    std::cout << "Correlating voltages (OBSID = " << obsInfo.id << ", Coarse Channel = " << obsInfo.coarseChannel << ") .." << std::endl;
 
-   if( calibrate ){
-      std::cout << "Calibration is being applied in the pipeline ( coarse channel index = " << obsInfo.coarse_channel_index << ")." << std::endl;
-      auto sol = CalibrationSolutions::from_file(this->calibration_solutions_file);
-      apply_solutions(xcorr, sol, obsInfo.coarse_channel_index);
-   }
+    high_resolution_clock::time_point corr_start = high_resolution_clock::now();
+    auto xcorr = cross_correlation(input, channels_to_avg);
+    high_resolution_clock::time_point corr_end = high_resolution_clock::now();
+    duration<double> corr_dur = duration_cast<duration<double>>(corr_end - corr_start);
+    std::cout << "Cross correlation took " << corr_dur.count() << " seconds." << std::endl;
 
-   std::cout << "Running imager.." << std::endl;
-   auto images = imager.run_imager(xcorr, -1, -1, imageSize, FOV_degrees, 
-      MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
-   std::cout << "Saving images to disk..." << std::endl;
-   high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
-   images.to_fits_files(output_dir);
-   high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
-   duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
-   std::cout << "Saving image took " << save_image_dur.count() << " seconds." << std::endl;
+    if(reorder){
+        xcorr = reorder_visibilities(xcorr, mapping[gpu_id]);
+    }
 
+    if( calibrate ){
+        std::cout << "Calibration is being applied in the pipeline ( coarse channel index = " << obsInfo.coarse_channel_index << ")." << std::endl;
+        apply_solutions(xcorr, cal_sol[gpu_id], obsInfo.coarse_channel_index);
+    }
+
+    std::cout << "Running imager.." << std::endl;
+    auto images = imager[gpu_id]->run_imager(xcorr, imageSize, MinUV, szWeighting.c_str());
+
+    if(!dedisp_engine.is_initialised()){
+        // no dedispersion, save images
+        std::cout << "Saving images to disk..." << std::endl;
+        high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
+        images.to_cpu();
+
+        images.to_fits_files(output_dir);
+        high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
+        duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
+        std::cout << "Copying images to CPU took " << save_image_dur.count() << " seconds." << std::endl;
+    }else{
+        int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.nFrequencies - 1;
+        high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();
+        dedisp_engine.compute_partial_dedispersion_gpu(images, top_freq_idx);
+        high_resolution_clock::time_point dedisp_end = high_resolution_clock::now();
+        duration<double> dedisp_dur = duration_cast<duration<double>>(dedisp_end-dedisp_start);
+        std::cout << "Dedispersion took " << dedisp_dur.count() << " seconds." << std::endl;
+    }
 }
 

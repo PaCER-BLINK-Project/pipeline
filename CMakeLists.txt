@@ -11,14 +11,6 @@ if(USE_CUDA)
 enable_language(CUDA CXX)
 endif()
 
-
-if(USE_HIP OR USE_CUDA)
-    message("INFO : HIP/GPU version")
-    add_definitions("-DIMAGER_HIP")
-else()
-    message("INFO : CPU version")
-endif()
-
 option(USE_OPENMP "Compile with OpenMP enabled." ON)
 
 # External dependencies
@@ -54,25 +46,29 @@ if (NOT BLINK_PREPROCESSING)
    message(FATAL_ERROR "BLINK_PREPROCESSING library not found.")
 endif()
 
+find_library(BLINK_DEDISP blink_dedispersion HINTS ENV LD_LIBRARY_PATH)
+if (NOT BLINK_DEDISP)
+   message(FATAL_ERROR "BLINK_DEDISP library not found.")
+endif()
+
 # Pipeline library
 file(GLOB pipeline_sources "src/*.cpp")
 file(GLOB pipeline_headers "src/*.hpp")
 
+
 if(USE_CUDA)
-set_source_files_properties( ${pipeline_sources} "apps/blink_pipeline.cpp" PROPERTIES LANGUAGE CUDA)
+set_source_files_properties(${pipeline_sources} "apps/blink_pipeline.cpp" PROPERTIES LANGUAGE CUDA)
 endif()
 
 add_library(pipeline SHARED ${pipeline_sources})
 set_target_properties(pipeline PROPERTIES PUBLIC_HEADER "${pipeline_headers}")
-target_link_libraries(pipeline ${CORRELATIONLIB} ${BLINK_ASTROIO} ${BLINK_PREPROCESSING} ${PACERIMAGERLIB} ${MSFITSLIB} ) #${LIBPAL_LIB})
+target_link_libraries(pipeline ${CORRELATIONLIB} ${BLINK_ASTROIO} ${BLINK_PREPROCESSING} ${PACERIMAGERLIB} ${MSFITSLIB} ${BLINK_DEDISP} )
 
 
 install(TARGETS pipeline
    LIBRARY DESTINATION "lib"
    PUBLIC_HEADER DESTINATION "include"
 )
-
-add_definitions(-D_UNIX -D_PACER_PROFILER_ON_)
 
 
 # APPS
