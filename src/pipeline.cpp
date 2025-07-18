@@ -16,62 +16,6 @@
 #include "files.hpp"
 #include <gpu_macros.hpp>
 
-// MS : 20230914 - temporary test code:
-// TODO : remove this function in the future use complex<double> 
-void ConvertXCorr2Fits(Visibilities& xcorr, CBgFits& vis_re, CBgFits& vis_im, int time_step, int fine_channel, const char* szOutputDir="./" )
-{
-
-   int n_ant = xcorr.obsInfo.nAntennas;
-   int n_corrs = 4; // 4 correlation products : XX XY YX YY 
-   int n_baselines = n_ant*(n_ant+1)/2;
-   ObservationInfo& obsInfo = xcorr.obsInfo;
-
-   const size_t matrixSize = n_baselines * obsInfo.nPolarizations * obsInfo.nPolarizations;
-   const size_t nIntervals  = (obsInfo.nTimesteps); // TODO  + voltages.nIntegrationSteps - 1) / voltages.nIntegrationSteps;
-   unsigned int nChannelsToAvg = 1; // TODO : verify
-   const size_t nOutFrequencies = obsInfo.nFrequencies / nChannelsToAvg;
-   const size_t nValuesInTimeInterval = matrixSize * nOutFrequencies;
-   const size_t outSize = nValuesInTimeInterval * nIntervals;
-   unsigned int avgCh = fine_channel / nChannelsToAvg;
-
-   
-
-   // size_t outIndex {interval * nValuesInTimeInterval + avgCh * matrixSize + baseline * obsInfo.nPolarizations * obsInfo.nPolarizations
-   //                             + p1*obsInfo.nPolarizations + p2};
-   // TODO !!!
-   // assuming single timestep for now :  
-   // assuming ordering of data as Cristian told me during the meeting :
-   // Ant11        | Ant 12       | Ant 13       | ...
-   // XX XY YX YY  | XX XY YX YY  | XX XY YX YY  | ...
-   int index = 0;
- 
-   vis_re.SetNaN();
-   vis_im.SetNaN();
-   // using at :
-   // Complex<float> *at_float(Visibilities& vis, unsigned int interval, unsigned int frequency, unsigned int a1, unsigned a2)
-   for(int i=0;i<n_ant;i++){ // loop over ant1          
-     for(int j=0;j<=i;j++){ // loop over ant2 
-        // auto& vis = xcorr.data[idx];
-//        std::complex<double>* vis = at( xcorr, time_step, fine_channel, i, j );
-        std::complex<float>* vis = xcorr.at( time_step, fine_channel, i, j );
-       
-        // current signs of imaginary work ok with Cristian's re-mapping:
-        vis_re.setXY(j,i,float(vis[0].real()));
-        vis_im.setXY(j,i,(+1)*float(vis[0].imag())); // was - 
-        vis_re.setXY(i,j,float(vis[0].real()));
-        vis_im.setXY(i,j,(-1)*float(vis[0].imag())); // was +
-     }     
-
-     index += (n_ant-i);
-  }
-
-  char szOutPutFits[1024];
-  sprintf(szOutPutFits,"%s/test_vis_re.fits",szOutputDir);  
-  vis_re.WriteFits( szOutPutFits );
-  sprintf(szOutPutFits,"%s/test_vis_im.fits",szOutputDir);
-  vis_im.WriteFits( szOutPutFits );
-}
-//-----------------------------------------------------------------------------------------------
 
 
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
@@ -107,17 +51,6 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     
    imager.Initialise(0);
    
- /* The following must be done in the imager
-   if( opts.bChangePhaseCentre ){
-      double obsid = -1;
-      if( CImagerParameters::m_bAutoFixMetaData ){
-         obsid = CObsMetadata::ux2gps( imager.m_ImagerParameters.m_fUnixTime );
-      }
-
-      imager.m_MetaData.set_radec( obsid, opts.fRAdeg, opts.fDECdeg );
-      printf("DEBUG : set RADEC of phase centre to (%.8f,%.8f) at obsid = %.2f\n",opts.fRAdeg,opts.fDECdeg,obsid);
-   }
-   */
    
    // setting flagged antennas must be called / done after reading METAFITS file:
    if( flagged_antennas.size() > 0 ){
