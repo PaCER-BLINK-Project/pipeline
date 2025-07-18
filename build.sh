@@ -1,36 +1,13 @@
 #!/bin/bash -e
 
-build_type="cpu"
-build_dir=build
-if [[ -n "$1" && "$1" != "-" ]]; then
-   build_type=$1
-fi
-
-echo "PARAMETERS:"
-echo "build_dir = $build_dir"
-
-cmake_options=""
-# DEBUG : -DCMAKE_BUILD_TYPE=Debug
-if [[ $build_type == "gpu" ]]; then
-   build_dir=build_gpu
-fi
-if [[ $build_type == "gpu" ]]; then
-   # WARNING : -DCUDA_SM=70 is specific for Topaz, the default is sm=61 for msok's laptop, but laptop/desktop is compiled using normal cmake 
-   # cmake_options="-DUSE_HIP=ON -DCUDA_SM=70"
-   cmake_options="-DUSE_HIP=ON -DCMAKE_BUILD_TYPE=Debug"
-   echo "INFO (build.sh) : build type ${build_type} detected -> added cmake_options = ${cmake_options}"
-else
-   echo "INFO (build.sh) : CPU version"
-fi
-
 
 # First, you need to source the bash library
 module load bash-utils
 source "${BASH_UTILS_DIR}/build_utils.sh"
 
 
-PROGRAM_NAME=blink-pipeline-${build_type}
-PROGRAM_VERSION=cristian-dev
+PROGRAM_NAME=blink-pipeline-gpu
+PROGRAM_VERSION=dedisp
 
  
 # the following function sets up the installation path according to the
@@ -45,28 +22,24 @@ process_build_script_input user #group
 # load all the modules required for the program to compile and run.
 # the following command also adds those module names in the modulefile
 # that this script will generate.
-echo "Loading required modules ..."=
+echo "Loading required modules ..."
 module reset
 module load cmake/3.27.7
-print_run module_load blink_test_data/devel  blink_astroio/master  blink_correlator/master blink-imager-gpu/cristian-dev blink_preprocessing/main rocm/5.7.3
-#print_run module_load blink_test_data/devel  blink_astroio/master  blink_correlator/master blink-imager-gpu/main-fixed blink_preprocessing/main rocm/5.7.3
-if [[ $build_type == "gpu" ]]; then
-   MORE_CMAKE_OPTIONS="-DUSE_HIP=ON"
-else
-   MORE_CMAKE_OPTIONS="-DUSE_HIP=OFF"
-fi
+print_run module_load blink_test_data/devel blink-astroio/master blink-correlator/master blink-imager-gpu/cristian-onegrid blink-preprocessing/main rocm/5.7.3
+
 
 # cmake is only required at build time, so we use the normal module load
 # build your software..
 echo "Building the software.."
-
+build_dir=build
 [ -d ${build_dir} ] || mkdir ${build_dir}
 cd ${build_dir}
 # Turns out we need to compile with HIPCC if AstroIO and the other libraries were compiled with GPU support. This is because
 # Voltages and Visibilities classes derive from MemoryBuffer, a template class in a header file make use of GPU calls.
-print_run cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_BUILD_TYPE=RelWithDebugInfo ${MORE_CMAKE_OPTIONS}
+print_run cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc -DCMAKE_CXX_FLAGS=-O0 -DCMAKE_BUILD_TYPE=Debug
 make VERBOSE=1
-# make test
+
+
 # Install the software
 make install
 
