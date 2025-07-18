@@ -18,16 +18,50 @@
 #include <pacer_imager_defs.h>
 #include "../src/files.hpp"
 
+struct ProgramOptions {
+    std::vector<std::string> input_files;
+    std::string outputDir;
+    unsigned int nChannelsToAvg;
+    double integrationTime;
+    bool reorder;
+    int coarseChannelIndex;
+    // imager options:
+    ObservationInfo obsInfo;
+    std::string szAntennaPositionsFile;
+    std::string szFlaggedAntennasListString;
+    std::string szCalibrationSolutionsFile;
+    std::vector<int> szFlaggedAntennasList;
+    double FOV_degrees;
+    std::string MetaDataFile;
+    std::string ImagerOutFilePostfix;
+    int ImageSize;
+    double MinUV;
+    bool bPrintImageStatistics;
+    std::string szWeighting;
+    bool bZenithImage;
+    bool averageImages;
+    // all-sky EDA2-like image
+    int FreqChannelToImage;
+    
+    // change phase centre
+    bool bChangePhaseCentre;
+    double fRAdeg;
+    double fDECdeg;
+    
+    // flagging antennas:
+    string gFlaggedAntennasListString;
+    vector<int> gFlaggedAntennasList;
+};
 
 
-void print_program_options(const blink::ProgramOptions& opts);
-void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts);
-void print_help(std::string exec_name, blink::ProgramOptions& opts);
+void print_program_options(const ProgramOptions& opts);
+void parse_program_options(int argc, char** argv, ProgramOptions& opts);
+void print_help(std::string exec_name, ProgramOptions& opts);
 
 
 
 int main(int argc, char **argv){
-    blink::ProgramOptions opts;
+    ProgramOptions opts;
 
      if(argc < 2){
         print_help(argv[0], opts);
@@ -54,7 +88,7 @@ int main(int argc, char **argv){
         opts.nChannelsToAvg, opts.integrationTime, opts.reorder, opts.szCalibrationSolutionsFile.length() > 0,
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
-        opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.inputDataType, opts.averageImages,
+        opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages,
         opts.gFlaggedAntennasList, opts.outputDir
     };
 
@@ -102,7 +136,7 @@ int main(int argc, char **argv){
 
 
 
-void print_help(std::string exec_name, blink::ProgramOptions& opts ){
+void print_help(std::string exec_name, ProgramOptions& opts ){
     std::cout << "\n" << exec_name << " -t <int time> [-c <cnls>] [-o <outdir>] DATFILE1 [DATFILE2 [DATFILE3 [...]]]\n"
     "\nProgram options:\n-------------\n"
     "\nCorrelator options:\n"
@@ -143,12 +177,11 @@ void print_help(std::string exec_name, blink::ProgramOptions& opts ){
 
 
 
-void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
+void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     // default values
     opts.outputDir = std::string {"."};
     opts.nChannelsToAvg = 1;
     opts.integrationTime = -1.0; // No default!
-    opts.inputDataType = blink::DataType::MWA;
     opts.szCalibrationSolutionsFile = "";
     opts.MinUV = -1000;
     opts.bZenithImage = false;
@@ -228,16 +261,6 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
             case 'c': {
                 opts.nChannelsToAvg = atoi(optarg);
                 if(opts.nChannelsToAvg < 1) throw std::invalid_argument("Value for number of channels to average must be at least 1.");
-                break;
-            }
-            
-            case 'i': {
-                if(!strcmp("eda2", optarg)) opts.inputDataType = blink::DataType::EDA2;
-                else if(strcmp("mwa", optarg)){
-                    std::stringstream ss;
-                    ss << "Unrecognised data type: '" << optarg  << "'.";
-                    throw std::invalid_argument(ss.str());
-                }
                 break;
             }
             
@@ -327,13 +350,12 @@ void parse_program_options(int argc, char** argv, blink::ProgramOptions& opts){
 }
 
 
-void print_program_options(const blink::ProgramOptions& opts){
+void print_program_options(const ProgramOptions& opts){
     std::cout << "\nRunning the correlator program with the following options:\n"
     "\t Integration time interval: " << opts.integrationTime << "s\n"
     "\t Freq. channel: " << opts.FreqChannelToImage << "\n"
     "\t Number of channels to average: " << opts.nChannelsToAvg << "\n"
-    "\t Output directory: " << opts.outputDir << "\n" 
-    "\t Data type: " << opts.inputDataType  << "\n"
+    "\t Output directory: " << opts.outputDir << "\n"
     "\t Calibration file: " << opts.szCalibrationSolutionsFile << "\n"    
     "\t Zenith image: " << opts.bZenithImage << std::endl;
 }

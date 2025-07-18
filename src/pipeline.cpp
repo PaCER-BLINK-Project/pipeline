@@ -19,7 +19,7 @@
 
 
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
-    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, blink::DataType inputType, bool averageImages, vector<int>& flagged_antennas, std::string& output_dir){
+    double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, vector<int>& flagged_antennas, std::string& output_dir){
 
     // set imager parameters according to options :    
     // no if here - assuming always true :
@@ -34,7 +34,6 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->bPrintImageStatistics = printImageStats;
     this->szWeighting = szWeighting;
     this->bZenithImage = bZenithImage;
-    this->inputDataType = inputType;
     this->FOV_degrees = FOV_degrees;
     this->reorder = reorder;
     this->output_dir = output_dir;
@@ -82,7 +81,7 @@ void blink::Pipeline::run(const Voltages& input, int freq_channel){
 	   xcorr = reorder_visibilities(xcorr, mapping);
    }
 
-   if( calibrate ){ // disabled for now before I check other things
+   if( calibrate ){
       std::cout << "Calibration is being applied in the pipeline ( coarse channel index = " << obsInfo.coarse_channel_index << ")." << std::endl;
       auto sol = CalibrationSolutions::from_file(this->calibration_solutions_file);
       apply_solutions(xcorr, sol, obsInfo.coarse_channel_index);
