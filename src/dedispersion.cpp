@@ -14,7 +14,9 @@ float dispersive_delay_s(float DM, float f_low_ghz, float f_high_ghz){
 }
 
 
-std::vector<int> compute_delay_table(float *frequencies, int n_frequencies, float *dm_list, int n_dms, float int_time) {
+std::vector<int> compute_delay_table(const std::vector<float>& frequencies, const std::vector<float>& dm_list, float int_time) {
+    int n_frequencies = frequencies.size();
+    int n_dms = dm_list.size();
     auto delay_table = std::vector<int> (n_dms * n_frequencies, 0);
     int top_freq_idx = n_frequencies - 1;
     for(int dm_idx = 0; dm_idx < n_dms; dm_idx++){
@@ -28,7 +30,7 @@ std::vector<int> compute_delay_table(float *frequencies, int n_frequencies, floa
 }
 
 
-float compute_sweep(const images& images, int freq_batch_start, int *delay_row, int start_time_step, int start_frequency_band,
+float compute_sweep(Images& images, int *delay_row, int start_time_step, int start_frequency_band,
         int freq_batch_size, int start_band_delay, int max_steps){
     float partial_integral = 0;
     // Start the sweep from the top start frequency going downwards
@@ -50,7 +52,9 @@ float compute_sweep(const images& images, int freq_batch_start, int *delay_row, 
         // get pixels related to current freq and delay
         for(int t {0}; t <= delay_steps; t++){
             int time_step = start_time_step + cumulative_delay + t;
-            partial_integral += images[current_band_idx, time_step];
+            std::complex<float> *image_start = images.at(time_step, current_band_idx - end_frequency);
+            const int x = 59, y = 629;
+            partial_integral += image_start[y * images.side_size + x].real();
         }
         
         if(exess_steps > 0){
@@ -63,14 +67,15 @@ float compute_sweep(const images& images, int freq_batch_start, int *delay_row, 
 
 
 
-
-
-void compute_partial_dedispersion(const Images& images, int start_freq_idx, int freq_batch_size, int n_frequencies, int batch_size, int *delay_table, float *dm_starttime, 
+void compute_partial_dedispersion(Images& images, int start_freq_idx, int freq_batch_size, int n_frequencies, int batch_size, int *delay_table, float *dm_starttime, 
     int n_dms, int table_size, int window_start_idx, int window_step_offset){
 
     auto cti = [window_start_idx, table_size](int offset) {
         return (window_start_idx + offset) % table_size;
     };
+
+    int end_freq = start_freq_idx - freq_batch_size + 1;
+    if(end_freq < 0) end_freq = 0;
 
     for(int dm_idx = 0; dm_idx < n_dms; dm_idx++){
         int *delay_row = delay_table + dm_idx * n_frequencies;
@@ -87,8 +92,6 @@ void compute_partial_dedispersion(const Images& images, int start_freq_idx, int 
         }
         // continue sweeps started in previous batches
         // for each frequency band, including the top one..
-        int end_freq = start_freq_idx - freq_batch_size + 1;
-        if(end_freq < 0) end_freq = 0;
         for(int start_frequency_band_idx {start_freq_idx}, a = 0; start_frequency_band_idx >= end_freq; start_frequency_band_idx--, a++){
             int delay_in_prev_bands = delay_row[ start_frequency_band_idx+1];
             // for each delay in such band that is greater than zero..
@@ -124,6 +127,6 @@ void clear_buffer(float* dm_starttime, int n_dms, int start_idx, int table_size,
 void get_elements(float *dm_starttime, int dm_idx, int window_start_idx, int buffer_size, int table_size){
     for(int i {0}; i < buffer_size; i++){
         int idx = (window_start_idx + i) % table_size;
-        std::cout << dm_starttime[dm_idx * table_size + idx] << std::endl;
+        std::cout << "BUFFOUT " << dm_starttime[dm_idx * table_size + idx] << std::endl;
     }
 }

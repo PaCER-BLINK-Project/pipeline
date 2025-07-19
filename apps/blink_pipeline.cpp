@@ -150,6 +150,7 @@ std::vector<float> get_frequencies(const std::vector<DatFile>& one_second, int c
     for(int i {1}; i <= n_bands; i++){
         frequencies[i] = frequencies[i - 1] + fine_ch_bw;
     }
+    for(int i {0}; i <= n_bands; i++)  frequencies[i] /= 1000.0f;
     std::cout << "Bottom frequency is " << frequencies[0] << ", top frequency is " << frequencies[frequencies.size() - 1] << std::endl;
     return frequencies;
 }
@@ -219,7 +220,7 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:GLA:b:uP:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:GLA:b:uP:D:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){

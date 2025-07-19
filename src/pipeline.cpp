@@ -23,8 +23,10 @@ void blink::Pipeline::set_frequencies(const std::vector<float>& frequencies){
    this->sweep_size = this->delay_table[(dm_list.size() - 1) * frequencies.size()] + 1;
    this->buffer_size = 100; // TODO: come up with a clever way to estimate this dynamically
    this->table_size = sweep_size + buffer_size;
-   this->dm_starttime.allocate(n_dms * table_size);
-   std::memset(dm_starttime.data(), 0, sizeof(float) * n_dms * table_size);
+   this->dm_starttime.allocate(dm_list.size() * table_size);
+   std::memset(dm_starttime.data(), 0, sizeof(float) * dm_list.size() * table_size);
+
+   std::cout << "sweep_size = " << sweep_size << ", table_size = " << table_size << std::endl;
 }
 
 
@@ -112,17 +114,23 @@ void blink::Pipeline::run(const Voltages& input){
    std::cout << "Running imager.." << std::endl;
    auto images = imager.run_imager(xcorr, -1, -1, imageSize, FOV_degrees, 
       MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
-   images.to_cpu();
+   
    // std::cout << "Saving images to disk..." << std::endl;
-   // high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
+   high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
+   images.to_cpu();
+   
    // images.to_fits_files(output_dir);
-   // high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
-   // duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
-   // std::cout << "Saving image took " << save_image_dur.count() << " seconds." << std::endl;
+   high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
+   duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
+   std::cout << "Copying images to CPU took " << save_image_dur.count() << " seconds." << std::endl;
 
    int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.nFrequencies - 1;
+   high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();
    compute_partial_dedispersion(images, top_freq_idx, images.nFrequencies,
-      frequencies.size(), batch_size, delay_table.data(), dm_starttime.data(), dm_list.int(), table_size, window_start_idx, window_offset);
+      frequencies.size(), batch_size, delay_table.data(), dm_starttime.data(), dm_list.size(), table_size, window_start_idx, window_offset);
+   high_resolution_clock::time_point dedisp_end = high_resolution_clock::now();
+   duration<double> dedisp_dur = duration_cast<duration<double>>(dedisp_end-dedisp_start);
+   std::cout << "Dedispersion took " << dedisp_dur.count() << " seconds." << std::endl;
 
 }
 
