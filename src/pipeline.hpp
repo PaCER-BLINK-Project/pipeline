@@ -54,12 +54,12 @@ namespace blink {
         std::vector<int> szFlaggedAntennasList;
         
         // dedispersion parameters
-        int _current_top_frequency_band_idx {769};
-
         int sweep_size;
         int batch_size;
         int buffer_size;
         int table_size;
+
+        int dedisp_norm_factor;
 
         int window_start_idx {0};
         // start position of the current batch within the window

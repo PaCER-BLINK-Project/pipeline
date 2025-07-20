@@ -29,9 +29,14 @@ std::vector<int> compute_delay_table(const std::vector<float>& frequencies, cons
     return delay_table;
 }
 
+float compute_normalisation_factor(std::vector<int>&delay_table){
+    float factor = 0.0f;
+    for(int i = 0; i < delay_table.size() - 1; i++) factor += (delay_table[i] - delay_table[i+1] + 1);
+    return factor;
+}
 
 float compute_sweep(Images& images, int *delay_row, int start_time_step, int start_frequency_band,
-        int freq_batch_size, int start_band_delay, int max_steps){
+        int freq_batch_size, int start_band_delay, int max_steps, int x, int y){
     float partial_integral = 0;
     // Start the sweep from the top start frequency going downwards
     int end_frequency = start_frequency_band - freq_batch_size + 1;
@@ -53,7 +58,7 @@ float compute_sweep(Images& images, int *delay_row, int start_time_step, int sta
         for(int t {0}; t <= delay_steps; t++){
             int time_step = start_time_step + cumulative_delay + t;
             std::complex<float> *image_start = images.at(time_step, current_band_idx - end_frequency);
-            const int x = 59, y = 629;
+            // const int x = 59, y = 629;
             partial_integral += image_start[y * images.side_size + x].real();
         }
         
@@ -74,6 +79,10 @@ void compute_partial_dedispersion(Images& images, int start_freq_idx, int freq_b
         return (window_start_idx + offset) % table_size;
     };
 
+    int cell_size = n_dms * table_size;
+    int width = cell_size * images.side_size;
+    
+
     int end_freq = start_freq_idx - freq_batch_size + 1;
     if(end_freq < 0) end_freq = 0;
 
@@ -87,8 +96,13 @@ void compute_partial_dedispersion(Images& images, int start_freq_idx, int freq_b
             if(start_time < 0) continue;
             
             int start_delay = (delay_row[start_freq_idx] - delay_row[start_freq_idx + 1]);
-            float partial_integral = compute_sweep(images, delay_row, ts, start_freq_idx, freq_batch_size, start_delay, batch_size - ts);
-            dm_starttime[dm_idx * table_size + cti(start_time)] += partial_integral;
+            #pragma omp parallel for collapse(2)
+            for(int x = 0; x < images.side_size; x++){
+                for(int y = 0; y < images.side_size; y++){
+                    float partial_integral = compute_sweep(images, delay_row, ts, start_freq_idx, freq_batch_size, start_delay, batch_size - ts, x, y);
+                    dm_starttime[y * width + x*cell_size + dm_idx * table_size +  cti(start_time)] += partial_integral;
+                }
+            }
         }
         // continue sweeps started in previous batches
         // for each frequency band, including the top one..
@@ -108,25 +122,41 @@ void compute_partial_dedispersion(Images& images, int start_freq_idx, int freq_b
                 }
                 // If we are at this point, then we need to sum # delay_current_batch pixels in the current
                 // frequency before continuing to the following bands as usual
-                float partial_integral = compute_sweep(images, delay_row, 0, start_frequency_band_idx, freq_batch_size - a, delay_current_batch - 1, batch_size);
-                dm_starttime[dm_idx * table_size +  cti(start_time)] += partial_integral;
+                #pragma omp parallel for collapse(2)
+                for(int x = 0; x < images.side_size; x++){
+                    for(int y = 0; y < images.side_size; y++){
+                        float partial_integral = compute_sweep(images, delay_row, 0, start_frequency_band_idx, freq_batch_size - a, delay_current_batch - 1, batch_size, x, y);
+                        dm_starttime[y * width + x*cell_size + dm_idx * table_size +  cti(start_time)] += partial_integral;
+                    }
+                }
             }
         }
     }
 }
 
-void clear_buffer(float* dm_starttime, int n_dms, int start_idx, int table_size, int buffer_size){
-    for(int dm {0}; dm < n_dms; dm++){
-        for(int i {0}; i < buffer_size; i++){
-            int adj_i = (start_idx + i) % table_size;
-            dm_starttime[dm * table_size + adj_i] = 0;
+void clear_buffer(float* dm_starttime, int side_size, int n_dms, int start_idx, int table_size, int buffer_size){
+    int width = n_dms * table_size * side_size;
+    int cell_size = n_dms * table_size;
+    for(int x = 0; x < side_size; x++){
+        for(int y = 0; y < side_size; y++){
+            for(int dm {0}; dm < n_dms; dm++){
+                for(int i {0}; i < buffer_size; i++){
+                    int adj_i = (start_idx + i) % table_size;
+                    dm_starttime[y * width + x*cell_size + dm * table_size + adj_i] = 0;
+                }
+            }
         }
     }
 }
 
-void get_elements(float *dm_starttime, int dm_idx, int window_start_idx, int buffer_size, int table_size){
+void get_elements(float *dm_starttime, int side_size, int n_dms, int dm_idx, int window_start_idx, int buffer_size, 
+        int table_size, float norm_factor, int x, int y){
+    
+    int width = n_dms * table_size * side_size;
+    int cell_size = n_dms * table_size;
+
     for(int i {0}; i < buffer_size; i++){
         int idx = (window_start_idx + i) % table_size;
-        std::cout << "BUFFOUT " << dm_starttime[dm_idx * table_size + idx] << std::endl;
+        std::cout << "BUFFOUT " << dm_starttime[y * width + x*cell_size + dm_idx * table_size + idx] / norm_factor << std::endl;
     }
 }
