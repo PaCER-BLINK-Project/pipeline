@@ -75,12 +75,13 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
 
 void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
    if(window_offset + batch_size > table_size){
+      int move_ahead = sweep_size < buffer_size ? (window_offset - sweep_size) : buffer_size;
       // Time to use and clear buffer
-      get_elements(dm_starttime.data(), 0, window_start_idx, buffer_size, table_size);
+      get_elements(dm_starttime.data(), 0, window_start_idx, move_ahead, table_size);
       // step 3, clear and rotate the buffer
-      clear_buffer(dm_starttime.data(), dm_list.size(), window_start_idx, table_size, buffer_size);
-      window_offset -= buffer_size;
-      window_start_idx = (window_start_idx + buffer_size) % table_size;
+      clear_buffer(dm_starttime.data(), dm_list.size(), window_start_idx, table_size, move_ahead);
+      window_offset -= move_ahead;
+      window_start_idx = (window_start_idx + move_ahead) % table_size;
    }
    for(const auto& input : inputs){
       run(*input);
