@@ -21,11 +21,12 @@ void blink::Pipeline::set_frequencies(const std::vector<float>& frequencies){
    this->frequencies = frequencies;
    this->delay_table = compute_delay_table(frequencies, dm_list, integration_time);
    this->sweep_size = this->delay_table[(dm_list.size() - 1) * frequencies.size()] + 1;
-   this->buffer_size = 100; // TODO: come up with a clever way to estimate this dynamically
+   this->dedisp_norm_factor = compute_normalisation_factor(delay_table);
    this->table_size = sweep_size + buffer_size;
-   this->dm_starttime.allocate(dm_list.size() * table_size);
-   std::memset(dm_starttime.data(), 0, sizeof(float) * dm_list.size() * table_size);
-
+   size_t dm_starttime_size {dm_list.size() * table_size * imageSize * imageSize};
+   std::cout << "Allocating " << (dm_starttime_size * sizeof(float) / (1024.0f*1024.0f*1024.0f)) << " GiB of memory for DMARRIVAL" << std::endl;
+   this->dm_starttime.allocate(dm_starttime_size);
+   std::memset(dm_starttime.data(), 0, sizeof(float) * dm_starttime_size);
    std::cout << "sweep_size = " << sweep_size << ", table_size = " << table_size << std::endl;
 }
 
@@ -52,6 +53,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->output_dir = output_dir;
     this->dm_list = dm_list;
     this->batch_size = static_cast<int>(1.0 / integration_time); // TODO do better than hard conding
+    this->buffer_size = 50; // 2 * this->batch_size;
     imager.m_ImagerParameters.SetGlobalParameters(szAntennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
     imager.m_ImagerParameters.m_szOutputDirectory = outputDir.c_str();
     imager.m_ImagerParameters.averageImages = averageImages;
@@ -77,9 +79,9 @@ void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
    if(window_offset + batch_size > table_size){
       int move_ahead = sweep_size < buffer_size ? (window_offset - sweep_size) : buffer_size;
       // Time to use and clear buffer
-      get_elements(dm_starttime.data(), 0, window_start_idx, move_ahead, table_size);
+      get_elements(dm_starttime.data(), imageSize, dm_list.size(), 0, window_start_idx, move_ahead, table_size, dedisp_norm_factor, 59, 629);
       // step 3, clear and rotate the buffer
-      clear_buffer(dm_starttime.data(), dm_list.size(), window_start_idx, table_size, move_ahead);
+      clear_buffer(dm_starttime.data(), imageSize, dm_list.size(), window_start_idx, table_size, move_ahead);
       window_offset -= move_ahead;
       window_start_idx = (window_start_idx + move_ahead) % table_size;
    }
