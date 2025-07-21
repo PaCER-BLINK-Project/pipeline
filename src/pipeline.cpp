@@ -53,7 +53,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->output_dir = output_dir;
     this->dm_list = dm_list;
     this->batch_size = static_cast<int>(1.0 / integration_time); // TODO do better than hard conding
-    this->buffer_size = 50; // 2 * this->batch_size;
+    this->buffer_size = 2 * this->batch_size;
     imager.m_ImagerParameters.SetGlobalParameters(szAntennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
     imager.m_ImagerParameters.m_szOutputDirectory = outputDir.c_str();
     imager.m_ImagerParameters.averageImages = averageImages;
@@ -74,16 +74,20 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
    }
 }
 
+void blink::Pipeline::process_buffer(){
+   if(window_offset < sweep_size) return;
+   int move_ahead = sweep_size < buffer_size ? (window_offset - sweep_size) : buffer_size;
+   // Time to use and clear buffer
+   get_elements(dm_starttime.data(), imageSize, dm_list.size(), 0, window_start_idx, move_ahead, table_size, dedisp_norm_factor, 59, 629);
+   // step 3, clear and rotate the buffer
+   clear_buffer(dm_starttime.data(), imageSize, dm_list.size(), window_start_idx, table_size, move_ahead);
+   window_offset -= move_ahead;
+   window_start_idx = (window_start_idx + move_ahead) % table_size;
+}
 
 void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
    if(window_offset + batch_size > table_size){
-      int move_ahead = sweep_size < buffer_size ? (window_offset - sweep_size) : buffer_size;
-      // Time to use and clear buffer
-      get_elements(dm_starttime.data(), imageSize, dm_list.size(), 0, window_start_idx, move_ahead, table_size, dedisp_norm_factor, 59, 629);
-      // step 3, clear and rotate the buffer
-      clear_buffer(dm_starttime.data(), imageSize, dm_list.size(), window_start_idx, table_size, move_ahead);
-      window_offset -= move_ahead;
-      window_start_idx = (window_start_idx + move_ahead) % table_size;
+      process_buffer();
    }
    for(const auto& input : inputs){
       run(*input);

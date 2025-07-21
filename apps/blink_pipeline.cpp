@@ -137,6 +137,7 @@ int main(int argc, char **argv){
             std::cout << "Reading voltages took " << volt_dur.count() << " seconds." << std::endl;
             pipeline.run(voltages);
         }
+        pipeline.process_buffer();
     }
 }
 

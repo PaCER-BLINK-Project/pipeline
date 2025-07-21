@@ -70,7 +70,6 @@ namespace blink {
         std::vector<int> delay_table;
         MemoryBuffer<float> dm_starttime;
         
-
         public:        
 
         Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
@@ -82,8 +81,8 @@ namespace blink {
         
         void run(const Voltages& input);
         void run(const std::vector<std::shared_ptr<Voltages>>& inputs);
-
         void set_frequencies(const std::vector<float>& frequencies);
+        void process_buffer();
 
     };
 }
