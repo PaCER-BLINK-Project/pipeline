@@ -21,7 +21,7 @@ void blink::Pipeline::set_frequencies(const std::vector<float>& frequencies){
    this->frequencies = frequencies;
    this->delay_table = compute_delay_table(frequencies, dm_list, integration_time);
    this->sweep_size = this->delay_table[(dm_list.size() - 1) * frequencies.size()] + 1;
-   this->dedisp_norm_factor = compute_normalisation_factor(delay_table);
+   this->norm_factors = compute_normalisation_factor(delay_table, dm_list.size(), frequencies.size());
    this->table_size = sweep_size + buffer_size;
    size_t dm_starttime_size {dm_list.size() * table_size * imageSize * imageSize};
    std::cout << "Allocating " << (dm_starttime_size * sizeof(float) / (1024.0f*1024.0f*1024.0f)) << " GiB of memory for DMARRIVAL" << std::endl;
@@ -78,8 +78,9 @@ void blink::Pipeline::process_buffer(){
    if(window_offset < sweep_size) return;
    int move_ahead = sweep_size < buffer_size ? (window_offset - sweep_size) : buffer_size;
    // Time to use and clear buffer
-   get_elements(dm_starttime.data(), imageSize, dm_list.size(), 0, window_start_idx, move_ahead, table_size, dedisp_norm_factor, 59, 629);
-   // step 3, clear and rotate the buffer
+   dump_buffer(dm_starttime.data(), imageSize, dm_list.size(), window_start_idx, move_ahead, table_size, 
+      norm_factors, output_dir + "/time_series.bin");
+      // step 3, clear and rotate the buffer
    clear_buffer(dm_starttime.data(), imageSize, dm_list.size(), window_start_idx, table_size, move_ahead);
    window_offset -= move_ahead;
    window_start_idx = (window_start_idx + move_ahead) % table_size;

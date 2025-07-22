@@ -13,5 +13,8 @@ void clear_buffer(float* dm_starttime, int side_size, int n_dms, int start_idx, 
 
 void get_elements(float *dm_starttime, int side_size, int n_dms, int dm_idx, int window_start_idx, int buffer_size, int table_size, float norm_factor, int x, int y);
 
-float compute_normalisation_factor(std::vector<int>&delay_table);
+void dump_buffer(float *dm_starttime, int side_size, int n_dms, int window_start_idx, int buffer_size, 
+        int table_size, const std::vector<float>& norm_factors, std::string filename);
+        
+std::vector<float> compute_normalisation_factor(std::vector<int>&delay_table, int n_dms, int n_frequencies);
 #endif

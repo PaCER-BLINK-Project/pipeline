@@ -59,7 +59,7 @@ namespace blink {
         int buffer_size;
         int table_size;
 
-        int dedisp_norm_factor;
+        std::vector<float> norm_factors;
 
         int window_start_idx {0};
         // start position of the current batch within the window

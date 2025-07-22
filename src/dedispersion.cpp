@@ -3,6 +3,7 @@
 #include <vector>
 #include <iostream>
 #include <cstring>
+#include <fstream>
 #include <images.hpp>
 #include "dedispersion.hpp"
 
@@ -29,10 +30,15 @@ std::vector<int> compute_delay_table(const std::vector<float>& frequencies, cons
     return delay_table;
 }
 
-float compute_normalisation_factor(std::vector<int>&delay_table){
+std::vector<float> compute_normalisation_factor(std::vector<int>&delay_table, int n_dms, int n_frequencies){
     float factor = 0.0f;
-    for(int i = 0; i < delay_table.size() - 1; i++) factor += (delay_table[i] - delay_table[i+1] + 1);
-    return factor;
+    std::vector<float> norm_factors(n_dms, 0.0f);
+    for(int dm_idx = 0; dm_idx < n_dms; dm_idx++){
+        for(int f = 0; f < n_frequencies - 1; f++){
+            norm_factors[dm_idx] += (delay_table[dm_idx * n_frequencies + f] - delay_table[dm_idx * n_frequencies + f + 1] + 1);
+        }
+    }
+    return norm_factors;
 }
 
 float compute_sweep(Images& images, int *delay_row, int start_time_step, int start_frequency_band,
@@ -157,6 +163,29 @@ void get_elements(float *dm_starttime, int side_size, int n_dms, int dm_idx, int
 
     for(int i {0}; i < buffer_size; i++){
         int idx = (window_start_idx + i) % table_size;
-        std::cout << "BUFFOUT " << dm_starttime[y * width + x*cell_size + dm_idx * table_size + idx] / norm_factor << std::endl;
+        std::cout << "BUFFOUT (dmidx = " << dm_idx << ") " << dm_starttime[y * width + x*cell_size + dm_idx * table_size + idx] / norm_factor << std::endl;
     }
+}
+
+void dump_buffer(float *dm_starttime, int side_size, int n_dms, int window_start_idx, int buffer_size, 
+        int table_size, const std::vector<float>& norm_factors, std::string filename){
+    int width = n_dms * table_size * side_size;
+    int cell_size = n_dms * table_size;
+    std::ofstream out_file(filename, std::ios::app | std::ios::binary);
+    #define write_to_file(X) out_file.write(reinterpret_cast<char*>(&X), sizeof(X))
+    write_to_file(side_size);
+    write_to_file(n_dms);
+    write_to_file(buffer_size); 
+    for(int x = 0; x < side_size; x++){
+        for(int y = 0; y < side_size; y++){
+            for(int dm {0}; dm < n_dms; dm++){
+                for(int i {0}; i < buffer_size; i++){
+                    int idx = (window_start_idx + i) % table_size;
+                    float val =  dm_starttime[y * width + x*cell_size + dm * table_size + idx] / norm_factors[dm];
+                    write_to_file(val);
+                }
+            }
+        }
+    }
+    out_file.close();
 }
