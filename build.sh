@@ -26,7 +26,7 @@ echo "Loading required modules ..."
 module reset
 module load cmake/3.27.7
 module use /software/setonix/unsupported/
-print_run module_load blink_test_data/devel blink-astroio/master blink-correlator/master blink-imager-gpu/cristian-onegrid blink-preprocessing/main rocm/6.2.4
+print_run module_load blink_test_data/devel blink-astroio/master blink-correlator/master blink-imager-gpu/cristian-dev blink-preprocessing/main rocm/6.2.4
 
 
 # cmake is only required at build time, so we use the normal module load

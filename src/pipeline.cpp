@@ -97,10 +97,9 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
 void blink::Pipeline::process_buffer(){
    if(window_offset < sweep_size) return;
    int move_ahead = sweep_size < buffer_size ? (window_offset - sweep_size) : buffer_size;
-   get_elements(dm_starttime, imageSize, dm_list.size(), 1, window_start_idx, move_ahead, table_size, norm_factors[1], 59, 629);
+   // get_elements(dm_starttime, imageSize, dm_list.size(), 0, window_start_idx, move_ahead, table_size, norm_factors[0], 58, 630);
    // Time to use and clear buffer
-   dump_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, move_ahead, table_size, 
-      norm_factors, output_dir + "/time_series.bin");
+   dump_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, move_ahead, table_size, norm_factors, output_dir + "/time_series.bin", 58, 630);
       // step 3, clear and rotate the buffer
    clear_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, table_size, move_ahead);
    window_offset -= move_ahead;
@@ -110,6 +109,11 @@ void blink::Pipeline::process_buffer(){
 void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
    if(window_offset + batch_size > table_size){
       process_buffer();
+   }
+   // TODO: there has to be a better way..
+   for(int i {0}; i < num_gpus; i++){
+        imager[i].m_ImagerParameters.m_fUnixTime = inputs[i]->obsInfo.startTime;
+        imager[i].Initialise(0);
    }
    #pragma omp parallel for num_threads(num_gpus)
    for(int i = 0; i < inputs.size(); i++){

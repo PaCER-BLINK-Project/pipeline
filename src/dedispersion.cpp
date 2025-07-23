@@ -143,6 +143,7 @@ void compute_partial_dedispersion(Images& images, int start_freq_idx, int freq_b
 void clear_buffer(float* dm_starttime, int side_size, int n_dms, int start_idx, int table_size, int buffer_size){
     int width = n_dms * table_size * side_size;
     int cell_size = n_dms * table_size;
+    #pragma omp parallel for collapse(2)
     for(int x = 0; x < side_size; x++){
         for(int y = 0; y < side_size; y++){
             for(int dm {0}; dm < n_dms; dm++){
@@ -168,21 +169,37 @@ void get_elements(float *dm_starttime, int side_size, int n_dms, int dm_idx, int
 }
 
 void dump_buffer(float *dm_starttime, int side_size, int n_dms, int window_start_idx, int buffer_size, 
-        int table_size, const std::vector<float>& norm_factors, std::string filename){
+        int table_size, const std::vector<float>& norm_factors, std::string filename, int x_0, int y_0){
     int width = n_dms * table_size * side_size;
     int cell_size = n_dms * table_size;
     std::ofstream out_file(filename, std::ios::app | std::ios::binary);
     #define write_to_file(X) out_file.write(reinterpret_cast<char*>(&X), sizeof(X))
-    write_to_file(side_size);
-    write_to_file(n_dms);
-    write_to_file(buffer_size); 
-    for(int x = 0; x < side_size; x++){
-        for(int y = 0; y < side_size; y++){
-            for(int dm {0}; dm < n_dms; dm++){
-                for(int i {0}; i < buffer_size; i++){
-                    int idx = (window_start_idx + i) % table_size;
-                    float val =  dm_starttime[y * width + x*cell_size + dm * table_size + idx] / norm_factors[dm];
-                    write_to_file(val);
+
+    if(x_0 != -1 && y_0!= -1){
+        int fakedim {1};
+        write_to_file(fakedim);
+        write_to_file(n_dms);
+        write_to_file(buffer_size);
+        for(int dm {0}; dm < n_dms; dm++){
+            for(int i {0}; i < buffer_size; i++){
+                int idx = (window_start_idx + i) % table_size;
+                float val =  dm_starttime[y_0 * width + x_0*cell_size + dm * table_size + idx] / norm_factors[dm];
+                write_to_file(val);
+            }
+        }
+    }else{
+        // dump all pixels
+        write_to_file(side_size);
+        write_to_file(n_dms);
+        write_to_file(buffer_size);
+        for(int x = 0; x < side_size; x++){
+            for(int y = 0; y < side_size; y++){
+                for(int dm {0}; dm < n_dms; dm++){
+                    for(int i {0}; i < buffer_size; i++){
+                        int idx = (window_start_idx + i) % table_size;
+                        float val =  dm_starttime[y * width + x*cell_size + dm * table_size + idx] / norm_factors[dm];
+                        write_to_file(val);
+                    }
                 }
             }
         }
