@@ -71,7 +71,9 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     
    imager.Initialise(0);
    
-   
+   if(calibrate)cal_sol = CalibrationSolutions::from_file(this->calibration_solutions_file);
+   if(reorder) mapping = get_visibilities_mapping(this->MetaDataFile);
+
    // setting flagged antennas must be called / done after reading METAFITS file:
    if( flagged_antennas.size() > 0 ){
        imager.SetFlaggedAntennas( flagged_antennas );
@@ -114,14 +116,12 @@ void blink::Pipeline::run(const Voltages& input){
    std::cout << "Cross correlation took " << corr_dur.count() << " seconds." << std::endl;
 
    if(reorder){
-      auto mapping = get_visibilities_mapping(this->MetaDataFile);
 	   xcorr = reorder_visibilities(xcorr, mapping);
    }
 
    if( calibrate ){
       std::cout << "Calibration is being applied in the pipeline ( coarse channel index = " << obsInfo.coarse_channel_index << ")." << std::endl;
-      auto sol = CalibrationSolutions::from_file(this->calibration_solutions_file);
-      apply_solutions(xcorr, sol, obsInfo.coarse_channel_index);
+      apply_solutions(xcorr, cal_sol, obsInfo.coarse_channel_index);
    }
 
    std::cout << "Running imager.." << std::endl;

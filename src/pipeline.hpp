@@ -6,11 +6,8 @@
 #include <astroio.hpp>
 #include <utils.hpp>
 #include <memory>
-#ifdef IMAGER_HIP
+#include <calibration.hpp>
 #include <hip/pacer_imager_hip.h>
-#else
-#include <pacer_imager.h>
-#endif
 
 namespace blink {
     
@@ -18,12 +15,7 @@ namespace blink {
 
     class Pipeline {
 
-        #ifdef IMAGER_HIP
-           CPacerImagerHip imager;   
-        #else
-           CPacerImager imager;
-        #endif  
-
+        CPacerImagerHip imager;
         std::string output_dir;
         bool calibrate {false};
         bool reorder {false};
@@ -38,7 +30,9 @@ namespace blink {
         int imageSize {512};
         // might be better to give it as input
         std::string MetaDataFile;
-        
+        MemoryBuffer<int> mapping;
+        CalibrationSolutions cal_sol;
+
 
         std::string ImagerOutFilePostfix;
         double MinUV;
