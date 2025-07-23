@@ -15,18 +15,22 @@
 #include "pipeline.hpp"
 #include "files.hpp"
 #include "dedispersion.hpp"
+#include "gpu/dedispersion_gpu.hpp"
 #include <gpu_macros.hpp>
 
 void blink::Pipeline::set_frequencies(const std::vector<float>& frequencies){
    this->frequencies = frequencies;
    this->delay_table = compute_delay_table(frequencies, dm_list, integration_time);
+   this->delay_table_gpu.allocate(delay_table.size());
+   for(int i {0}; i < delay_table.size(); i++) delay_table_gpu[i] = delay_table[i];
+   delay_table_gpu.to_gpu();
    this->sweep_size = this->delay_table[(dm_list.size() - 1) * frequencies.size()] + 1;
    this->norm_factors = compute_normalisation_factor(delay_table, dm_list.size(), frequencies.size());
    this->table_size = sweep_size + buffer_size;
    size_t dm_starttime_size {dm_list.size() * table_size * imageSize * imageSize};
    std::cout << "Allocating " << (dm_starttime_size * sizeof(float) / (1024.0f*1024.0f*1024.0f)) << " GiB of memory for DMARRIVAL" << std::endl;
-   this->dm_starttime.allocate(dm_starttime_size);
-   std::memset(dm_starttime.data(), 0, sizeof(float) * dm_starttime_size);
+   gpuMallocManaged(&dm_starttime, sizeof(float) * dm_starttime_size);
+   std::memset(dm_starttime, 0, sizeof(float) * dm_starttime_size);
    std::cout << "sweep_size = " << sweep_size << ", table_size = " << table_size << std::endl;
 }
 
@@ -77,11 +81,12 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
 void blink::Pipeline::process_buffer(){
    if(window_offset < sweep_size) return;
    int move_ahead = sweep_size < buffer_size ? (window_offset - sweep_size) : buffer_size;
+   get_elements(dm_starttime, imageSize, dm_list.size(), 1, window_start_idx, move_ahead, table_size, norm_factors[1], 59, 629);
    // Time to use and clear buffer
-   dump_buffer(dm_starttime.data(), imageSize, dm_list.size(), window_start_idx, move_ahead, table_size, 
+   dump_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, move_ahead, table_size, 
       norm_factors, output_dir + "/time_series.bin");
       // step 3, clear and rotate the buffer
-   clear_buffer(dm_starttime.data(), imageSize, dm_list.size(), window_start_idx, table_size, move_ahead);
+   clear_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, table_size, move_ahead);
    window_offset -= move_ahead;
    window_start_idx = (window_start_idx + move_ahead) % table_size;
 }
@@ -124,18 +129,18 @@ void blink::Pipeline::run(const Voltages& input){
       MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
    
    // std::cout << "Saving images to disk..." << std::endl;
-   high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
-   images.to_cpu();
+   // high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
+   // images.to_cpu();
    
-   // images.to_fits_files(output_dir);
-   high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
-   duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
-   std::cout << "Copying images to CPU took " << save_image_dur.count() << " seconds." << std::endl;
+   // // images.to_fits_files(output_dir);
+   // high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
+   // duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
+   // std::cout << "Copying images to CPU took " << save_image_dur.count() << " seconds." << std::endl;
 
    int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.nFrequencies - 1;
    high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();
-   compute_partial_dedispersion(images, top_freq_idx, images.nFrequencies,
-      frequencies.size(), batch_size, delay_table.data(), dm_starttime.data(), dm_list.size(), table_size, window_start_idx, window_offset);
+   compute_partial_dedispersion_gpu(images, top_freq_idx, images.nFrequencies,
+      frequencies.size(), batch_size, delay_table_gpu.data(), dm_starttime, dm_list.size(), table_size, window_start_idx, window_offset);
    high_resolution_clock::time_point dedisp_end = high_resolution_clock::now();
    duration<double> dedisp_dur = duration_cast<duration<double>>(dedisp_end-dedisp_start);
    std::cout << "Dedispersion took " << dedisp_dur.count() << " seconds." << std::endl;

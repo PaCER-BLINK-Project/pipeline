@@ -7,7 +7,7 @@ source "${BASH_UTILS_DIR}/build_utils.sh"
 
 
 PROGRAM_NAME=blink-pipeline-gpu
-PROGRAM_VERSION=dedisp
+PROGRAM_VERSION=dedisp-gpu
 
  
 # the following function sets up the installation path according to the
@@ -25,7 +25,8 @@ process_build_script_input user #group
 echo "Loading required modules ..."
 module reset
 module load cmake/3.27.7
-print_run module_load blink_test_data/devel blink-astroio/master blink-correlator/master blink-imager-gpu/cristian-onegrid blink-preprocessing/main rocm/5.7.3
+module use /software/setonix/unsupported/
+print_run module_load blink_test_data/devel blink-astroio/master blink-correlator/master blink-imager-gpu/cristian-onegrid blink-preprocessing/main rocm/6.2.4
 
 
 # cmake is only required at build time, so we use the normal module load

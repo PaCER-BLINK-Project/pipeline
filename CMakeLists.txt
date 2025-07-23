@@ -11,14 +11,6 @@ if(USE_CUDA)
 enable_language(CUDA CXX)
 endif()
 
-
-if(USE_HIP OR USE_CUDA)
-    message("INFO : HIP/GPU version")
-    add_definitions("-DIMAGER_HIP")
-else()
-    message("INFO : CPU version")
-endif()
-
 option(USE_OPENMP "Compile with OpenMP enabled." ON)
 
 # External dependencies
@@ -58,19 +50,27 @@ endif()
 file(GLOB pipeline_sources "src/*.cpp")
 file(GLOB pipeline_headers "src/*.hpp")
 
-if(USE_CUDA)
-set_source_files_properties( ${pipeline_sources} "apps/blink_pipeline.cpp" PROPERTIES LANGUAGE CUDA)
+if(USE_HIP OR USE_CUDA)
+    message("Requesting GPU version")
+    add_definitions("-DIMAGER_HIP")
+    file(GLOB gpu_sources "src/gpu/*.cpp")
+    file(GLOB gpu_headers "src/gpu/*.h")
 endif()
 
-add_library(pipeline SHARED ${pipeline_sources})
+if(USE_CUDA)
+set_source_files_properties( ${gpu_sources} ${pipeline_sources} "apps/blink_pipeline.cpp" PROPERTIES LANGUAGE CUDA)
+endif()
+
+add_library(pipeline SHARED ${pipeline_sources} ${gpu_sources})
 set_target_properties(pipeline PROPERTIES PUBLIC_HEADER "${pipeline_headers}")
-target_link_libraries(pipeline ${CORRELATIONLIB} ${BLINK_ASTROIO} ${BLINK_PREPROCESSING} ${PACERIMAGERLIB} ${MSFITSLIB} ) #${LIBPAL_LIB})
+target_link_libraries(pipeline ${CORRELATIONLIB} ${BLINK_ASTROIO} ${BLINK_PREPROCESSING} ${PACERIMAGERLIB} ${MSFITSLIB} )
 
 
 install(TARGETS pipeline
    LIBRARY DESTINATION "lib"
    PUBLIC_HEADER DESTINATION "include"
 )
+install(FILES ${gpu_headers} DESTINATION "${CMAKE_INSTALL_PREFIX}/include/gpu")
 
 add_definitions(-D_UNIX -D_PACER_PROFILER_ON_)
 

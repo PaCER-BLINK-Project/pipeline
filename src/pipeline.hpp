@@ -25,7 +25,7 @@ namespace blink {
         #endif  
 
         std::string output_dir;
-        bool calibrate {false};        
+        bool calibrate {false};
         bool reorder {false};
         // Correlation-related options
         unsigned int channels_to_avg {1};
@@ -68,7 +68,8 @@ namespace blink {
         std::vector<float> frequencies;
         std::vector<float> dm_list;
         std::vector<int> delay_table;
-        MemoryBuffer<float> dm_starttime;
+        MemoryBuffer<int> delay_table_gpu;
+        float* dm_starttime;
         
         public:        
 
