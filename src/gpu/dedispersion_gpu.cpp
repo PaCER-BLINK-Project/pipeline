@@ -79,7 +79,7 @@ void compute_partial_dedispersion_kernel(Complex<float>* images, unsigned long l
                 int x = static_cast<int>(pix_id % side_size);
                 int y = static_cast<int>(pix_id / side_size);
                 float partial_integral = compute_sweep(images, n_pixels, delay_row, ts, start_freq_idx, freq_batch_size, 0, start_delay, batch_size - ts, pix_id);
-                    dm_starttime[y * width + x*cell_size + dm_idx * table_size +  cti(start_time)] += partial_integral;
+                atomicAdd(&dm_starttime[y * width + x*cell_size + dm_idx * table_size +  cti(start_time)], partial_integral);
             }
         }
         // continue sweeps started in previous batches
@@ -106,7 +106,7 @@ void compute_partial_dedispersion_kernel(Complex<float>* images, unsigned long l
                     int x = static_cast<int>(pix_id % side_size);
                     int y = static_cast<int>(pix_id / side_size);
                     float partial_integral = compute_sweep(images, n_pixels, delay_row, 0, start_frequency_band_idx, freq_batch_size, a, delay_current_batch - 1, batch_size, pix_id);
-                        dm_starttime[y * width + x*cell_size + dm_idx * table_size +  cti(start_time)] += partial_integral;
+                    atomicAdd(&dm_starttime[y * width + x*cell_size + dm_idx * table_size +  cti(start_time)], partial_integral);
                 }
             }
         }

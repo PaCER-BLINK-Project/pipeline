@@ -103,7 +103,7 @@ int main(int argc, char **argv){
         obs_info.coarse_channel_index = opts.coarseChannelIndex;
         unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
         auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps);
-        pipeline.run(volt);
+        pipeline.run(volt, 0);
     }else{
         auto observation = parse_mwa_dat_files(opts.input_files);
         auto frequencies = get_frequencies(observation[0], opts.nChannelsToAvg);

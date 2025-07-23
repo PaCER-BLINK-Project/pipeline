@@ -15,7 +15,7 @@ namespace blink {
 
     class Pipeline {
 
-        CPacerImagerHip imager;
+        CPacerImagerHip* imager {nullptr};
         std::string output_dir;
         bool calibrate {false};
         bool reorder {false};
@@ -30,8 +30,8 @@ namespace blink {
         int imageSize {512};
         // might be better to give it as input
         std::string MetaDataFile;
-        MemoryBuffer<int> mapping;
-        CalibrationSolutions cal_sol;
+        std::vector<MemoryBuffer<int>> mapping;
+        std::vector<CalibrationSolutions> cal_sol;
 
 
         std::string ImagerOutFilePostfix;
@@ -62,7 +62,8 @@ namespace blink {
         std::vector<float> frequencies;
         std::vector<float> dm_list;
         std::vector<int> delay_table;
-        MemoryBuffer<int> delay_table_gpu;
+        std::vector<MemoryBuffer<int>> delay_table_gpu;
+        int num_gpus;
         float* dm_starttime;
         
         public:        
@@ -74,10 +75,12 @@ namespace blink {
                   vector<int>& flagged_antennas, std::vector<float>& dm_list, std::string& output_dir
                 );
         
-        void run(const Voltages& input);
+        void run(const Voltages& input, int gpu_id);
         void run(const std::vector<std::shared_ptr<Voltages>>& inputs);
         void set_frequencies(const std::vector<float>& frequencies);
         void process_buffer();
+
+        ~Pipeline() {if(imager) delete[] imager;};
 
     };
 }
