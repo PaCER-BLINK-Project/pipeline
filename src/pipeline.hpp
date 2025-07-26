@@ -58,6 +58,7 @@ namespace blink {
         int window_start_idx {0};
         // start position of the current batch within the window
         int window_offset {0};
+        int global_offset {0};
 
         std::vector<float> frequencies;
         std::vector<float> dm_list;
@@ -65,6 +66,8 @@ namespace blink {
         std::vector<MemoryBuffer<int>> delay_table_gpu;
         int num_gpus;
         float* dm_starttime;
+
+        float SNR;
         
         public:        
 
@@ -72,7 +75,7 @@ namespace blink {
                   int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, 
                   bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
                   double FOV_degrees, bool averageImages,
-                  vector<int>& flagged_antennas, std::vector<float>& dm_list, std::string& output_dir
+                  vector<int>& flagged_antennas, std::vector<float>& dm_list, float SNR, std::string& output_dir
                 );
         
         void run(const Voltages& input, int gpu_id);

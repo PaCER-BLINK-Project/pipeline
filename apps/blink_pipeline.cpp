@@ -47,6 +47,7 @@ struct ProgramOptions {
     bool bChangePhaseCentre;
     double fRAdeg;
     double fDECdeg;
+    float SNR;
     
     // flagging antennas:
     string gFlaggedAntennasListString;
@@ -93,7 +94,7 @@ int main(int argc, char **argv){
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages,
-        opts.gFlaggedAntennasList, opts.dm_list, opts.outputDir
+        opts.gFlaggedAntennasList, opts.dm_list, opts.SNR, opts.outputDir
     };
 
     bool on_gpu = num_available_gpus() > 0;
@@ -106,9 +107,11 @@ int main(int argc, char **argv){
         pipeline.run(volt, 0);
     }else{
         auto observation = parse_mwa_dat_files(opts.input_files);
-        auto frequencies = get_frequencies(observation[0], opts.nChannelsToAvg);
-        pipeline.set_frequencies(frequencies);
-
+        if(opts.dm_list.size() > 0){
+            // enabled dedispersion
+            auto frequencies = get_frequencies(observation[0], opts.nChannelsToAvg);
+            pipeline.set_frequencies(frequencies);
+        }
         for (auto& one_second_data : observation) {
             /* the std::vector memory allocator progressively allocates larger chunk of memory to
              * make space for new elements, copying existing elements to the new memory location.
@@ -137,7 +140,9 @@ int main(int argc, char **argv){
             std::cout << "Reading voltages took " << volt_dur.count() << " seconds." << std::endl;
             pipeline.run(voltages);
         }
-        pipeline.process_buffer();
+        if(opts.dm_list.size() > 0){
+            pipeline.process_buffer();
+        }
     }
 }
 
@@ -193,6 +198,7 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "'t-u : average images across frequency channels and timesteps.\n"
     "\t-P : set phase centre to RA_DEG,DEC_DEG, example -P 148.2875,7.92638889 to have B0950+08 in the phase centre\n"
     "\t-D : comma-separated list of DM trials (e.g. -D 0,0.5,1,1.5) \n"
+    "\t-S : Signal to Noise (SNR) threshold level for declaring a detection.\n"
     "\t"
     << std::endl;
 }
@@ -216,12 +222,13 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.bChangePhaseCentre = false;
     opts.fRAdeg = 0.00;
     opts.fDECdeg = 0.00;
+    opts.SNR = 5.0f;
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:GLA:b:uP:D:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:GLA:b:uP:D:S:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -254,6 +261,10 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
             case 'b' : {
                opts.coarseChannelIndex = atoi(optarg);
                break;
+            }
+            case 'S' : {
+                opts.SNR = atof(optarg);
+                break;
             }
 
             case 'C': {
@@ -380,9 +391,23 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     if(opts.dm_list_string.length() > 0 ){
        MyParser pars=opts.dm_list_string.c_str();
        CMyStrTable items;
-       pars.GetItemsNew( items, "," );
-       for(int i=0;i<items.size();i++){
-          opts.dm_list.push_back( atof(items[i].c_str()));
+       if(opts.dm_list_string.find(":") != std::string::npos){
+            // dm trials specified with min:max:step
+            pars.GetItemsNew( items, ":" );
+            float dm_start = atof(items[0].c_str());
+            float dm_stop = atof(items[1].c_str());
+            float dm_delta = atof(items[2].c_str());
+            while(dm_start <= dm_stop){
+                std::cout << "DM trial " << dm_start << std::endl;
+                opts.dm_list.push_back(dm_start);
+                dm_start += dm_delta;
+            }
+       }else{
+            // dm trials specified explicitly with a list
+            pars.GetItemsNew( items, "," );
+            for(int i=0;i<items.size();i++){
+                opts.dm_list.push_back( atof(items[i].c_str()));
+            }
        }
     }
 }

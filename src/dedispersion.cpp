@@ -169,7 +169,7 @@ void get_elements(float *dm_starttime, int side_size, int n_dms, int dm_idx, int
 }
 
 void dump_buffer(float *dm_starttime, int side_size, int n_dms, int window_start_idx, int buffer_size, 
-        int table_size, const std::vector<float>& norm_factors, std::string filename, int x_0, int y_0){
+        int table_size, std::string filename, int x_0, int y_0){
     int width = n_dms * table_size * side_size;
     int cell_size = n_dms * table_size;
     std::ofstream out_file(filename, std::ios::app | std::ios::binary);
@@ -183,7 +183,7 @@ void dump_buffer(float *dm_starttime, int side_size, int n_dms, int window_start
         for(int dm {0}; dm < n_dms; dm++){
             for(int i {0}; i < buffer_size; i++){
                 int idx = (window_start_idx + i) % table_size;
-                float val =  dm_starttime[y_0 * width + x_0*cell_size + dm * table_size + idx] / norm_factors[dm];
+                float val =  dm_starttime[y_0 * width + x_0*cell_size + dm * table_size + idx];
                 write_to_file(val);
             }
         }
@@ -197,7 +197,7 @@ void dump_buffer(float *dm_starttime, int side_size, int n_dms, int window_start
                 for(int dm {0}; dm < n_dms; dm++){
                     for(int i {0}; i < buffer_size; i++){
                         int idx = (window_start_idx + i) % table_size;
-                        float val =  dm_starttime[y * width + x*cell_size + dm * table_size + idx] / norm_factors[dm];
+                        float val =  dm_starttime[y * width + x*cell_size + dm * table_size + idx];
                         write_to_file(val);
                     }
                 }

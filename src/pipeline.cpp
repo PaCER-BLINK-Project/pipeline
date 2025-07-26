@@ -16,6 +16,7 @@
 #include "files.hpp"
 #include "dedispersion.hpp"
 #include "gpu/dedispersion_gpu.hpp"
+#include "peak_finding.hpp"
 #include <gpu_macros.hpp>
 
 void blink::Pipeline::set_frequencies(const std::vector<float>& frequencies){
@@ -28,7 +29,7 @@ void blink::Pipeline::set_frequencies(const std::vector<float>& frequencies){
     this->sweep_size = this->delay_table[(dm_list.size() - 1) * frequencies.size()] + 1;
     this->norm_factors = compute_normalisation_factor(delay_table, dm_list.size(), frequencies.size());
     this->table_size = sweep_size + buffer_size;
-    size_t dm_starttime_size {dm_list.size() * table_size * imageSize * imageSize};
+    unsigned long long dm_starttime_size {static_cast<unsigned long long>(dm_list.size()) * table_size * imageSize * imageSize};
     std::cout << "Allocating " << (dm_starttime_size * sizeof(float) / (1024.0f*1024.0f*1024.0f)) << " GiB of memory for DMARRIVAL" << std::endl;
     gpuMallocManaged(&dm_starttime, sizeof(float) * dm_starttime_size);
     std::memset(dm_starttime, 0, sizeof(float) * dm_starttime_size);
@@ -38,7 +39,7 @@ void blink::Pipeline::set_frequencies(const std::vector<float>& frequencies){
 
 // TODO: we could use an observation info structure here to pass values
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, int imageSize, std::string metadataFile, std::string szAntennaPositionsFile,
-   double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, vector<int>& flagged_antennas,  std::vector<float>& dm_list, std::string& output_dir){
+   double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, vector<int>& flagged_antennas,  std::vector<float>& dm_list, float SNR, std::string& output_dir){
 
     gpuGetDeviceCount(&num_gpus);
     if(num_gpus == 0){
@@ -69,7 +70,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->batch_size = static_cast<int>(1.0 / integration_time); // TODO do better than hard conding
     this->buffer_size = 2 * this->batch_size;
     this->bZenithImage = false;
-
+    this->SNR = SNR;
     if(calibrate) cal_sol[0] = CalibrationSolutions::from_file(this->calibration_solutions_file);
     if(reorder) mapping[0] = get_visibilities_mapping(this->MetaDataFile);
 
@@ -99,11 +100,13 @@ void blink::Pipeline::process_buffer(){
    int move_ahead = sweep_size < buffer_size ? (window_offset - sweep_size) : buffer_size;
    // get_elements(dm_starttime, imageSize, dm_list.size(), 0, window_start_idx, move_ahead, table_size, norm_factors[0], 58, 630);
    // Time to use and clear buffer
-   dump_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, move_ahead, table_size, norm_factors, output_dir + "/time_series.bin", 58, 630);
+   peakfinding_simple_avg(dm_starttime, imageSize, dm_list, window_start_idx, move_ahead, table_size, global_offset, norm_factors, SNR, output_dir + "/candidates.bin");
+   dump_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, move_ahead, table_size, output_dir + "/time_series.bin",  514, 539);
       // step 3, clear and rotate the buffer
    clear_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, table_size, move_ahead);
    window_offset -= move_ahead;
    window_start_idx = (window_start_idx + move_ahead) % table_size;
+   global_offset += move_ahead;
 }
 
 void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
@@ -150,22 +153,25 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
     auto images = imager[gpu_id].run_imager(xcorr, -1, -1, imageSize, FOV_degrees, 
         MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
 
-    // std::cout << "Saving images to disk..." << std::endl;
-    // high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
-    // images.to_cpu();
+    if(dm_list.size() == 0){
+        // no dedispersion, save images
+        std::cout << "Saving images to disk..." << std::endl;
+        high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
+        images.to_cpu();
 
-    // // images.to_fits_files(output_dir);
-    // high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
-    // duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
-    // std::cout << "Copying images to CPU took " << save_image_dur.count() << " seconds." << std::endl;
-
-    int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.nFrequencies - 1;
-    high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();
-    delay_table_gpu[gpu_id].to_gpu();
-    compute_partial_dedispersion_gpu(images, top_freq_idx, images.nFrequencies,
-        frequencies.size(), batch_size, delay_table_gpu[gpu_id].data(), dm_starttime, dm_list.size(), table_size, window_start_idx, window_offset);
-    high_resolution_clock::time_point dedisp_end = high_resolution_clock::now();
-    duration<double> dedisp_dur = duration_cast<duration<double>>(dedisp_end-dedisp_start);
-    std::cout << "Dedispersion took " << dedisp_dur.count() << " seconds." << std::endl;
+        images.to_fits_files(output_dir);
+        high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
+        duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
+        std::cout << "Copying images to CPU took " << save_image_dur.count() << " seconds." << std::endl;
+    }else{
+        int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.nFrequencies - 1;
+        high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();
+        delay_table_gpu[gpu_id].to_gpu();
+        compute_partial_dedispersion_gpu(images, top_freq_idx, images.nFrequencies,
+            frequencies.size(), batch_size, delay_table_gpu[gpu_id].data(), dm_starttime, dm_list.size(), table_size, window_start_idx, window_offset);
+        high_resolution_clock::time_point dedisp_end = high_resolution_clock::now();
+        duration<double> dedisp_dur = duration_cast<duration<double>>(dedisp_end-dedisp_start);
+        std::cout << "Dedispersion took " << dedisp_dur.count() << " seconds." << std::endl;
+    }
 }
 
