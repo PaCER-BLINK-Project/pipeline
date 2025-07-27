@@ -7,7 +7,7 @@ source "${BASH_UTILS_DIR}/build_utils.sh"
 
 
 PROGRAM_NAME=blink-pipeline-gpu
-PROGRAM_VERSION=dedisp-gpu
+PROGRAM_VERSION=debug
 
  
 # the following function sets up the installation path according to the
@@ -26,7 +26,7 @@ echo "Loading required modules ..."
 module reset
 module load cmake/3.27.7
 module use /software/setonix/unsupported/
-print_run module_load blink_test_data/devel blink-astroio/master blink-correlator/master blink-imager-gpu/cristian-dev blink-preprocessing/main rocm/6.2.4
+print_run module_load blink_test_data/devel blink-astroio/master blink-correlator/master blink-imager-gpu/cleanup blink-preprocessing/main rocm/6.2.4
 
 
 # cmake is only required at build time, so we use the normal module load
@@ -37,7 +37,7 @@ build_dir=build
 cd ${build_dir}
 # Turns out we need to compile with HIPCC if AstroIO and the other libraries were compiled with GPU support. This is because
 # Voltages and Visibilities classes derive from MemoryBuffer, a template class in a header file make use of GPU calls.
-print_run cmake .. -DUSE_OPENMP=ON -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DUSE_HIP=ON -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc -DCMAKE_CXX_FLAGS=-O0 -DCMAKE_BUILD_TYPE=Debug
+print_run cmake .. -DUSE_OPENMP=ON -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DUSE_HIP=ON -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc -DCMAKE_CXX_FLAGS=-O3 -DCMAKE_BUILD_TYPE=Release
 make VERBOSE=1
 
 

@@ -7,7 +7,7 @@
 #include <utils.hpp>
 #include <memory>
 #include <calibration.hpp>
-#include <hip/pacer_imager_hip.h>
+#include <gpu/pacer_imager_hip.h>
 
 namespace blink {
     
