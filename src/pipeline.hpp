@@ -15,7 +15,7 @@ namespace blink {
 
     class Pipeline {
 
-        CPacerImagerHip* imager {nullptr};
+        std::vector<CPacerImagerHip*> imager;
         std::string output_dir;
         bool calibrate {false};
         bool reorder {false};
@@ -83,7 +83,9 @@ namespace blink {
         void set_frequencies(const std::vector<float>& frequencies);
         void process_buffer();
 
-        ~Pipeline() {if(imager) delete[] imager;};
+        ~Pipeline() {
+            for(CPacerImagerHip* p : imager) delete p;
+        };
 
     };
 }

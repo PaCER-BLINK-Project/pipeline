@@ -46,7 +46,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
         std::cerr << "No GPU device detected. Aborting.." << std::endl;
         throw std::exception();
     }
-    imager = new CPacerImagerHip[num_gpus];
+    imager.resize(num_gpus);
     mapping.resize(num_gpus);
     cal_sol.resize(num_gpus);
     delay_table_gpu.resize(num_gpus);
@@ -75,19 +75,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     if(reorder) mapping[0] = get_visibilities_mapping(this->MetaDataFile);
 
     for(int i {0}; i < num_gpus; i++){
-        imager[i].m_ImagerParameters.m_bConstantUVW = true;
-        imager[i].m_ImagerParameters.SetGlobalParameters(szAntennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith 
-        imager[i].m_ImagerParameters.m_szOutputDirectory = outputDir.c_str();
-        imager[i].m_ImagerParameters.averageImages = averageImages;
-        if(strlen(metadataFile.c_str())){
-            imager[i].m_ImagerParameters.m_MetaDataFile = metadataFile.c_str();
-            imager[i].m_ImagerParameters.m_bConstantUVW = false; // when Meta data file is provided it assumes that it will pointed observation (not all sky)
-        }
-        
-        imager[i].Initialise(0);
-            // setting flagged antennas must be called / done after reading METAFITS file:
-        if(flagged_antennas.size() > 0 )
-            imager[i].SetFlaggedAntennas( flagged_antennas );
+        imager[i] = new CPacerImagerHip {metadataFile, flagged_antennas, averageImages};
         if(i > 0) {
             cal_sol[i] = cal_sol[0];
             mapping[i] = mapping[0];
@@ -112,11 +100,6 @@ void blink::Pipeline::process_buffer(){
 void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
    if(window_offset + batch_size > table_size){
       process_buffer();
-   }
-   // TODO: there has to be a better way..
-   for(int i {0}; i < num_gpus; i++){
-        imager[i].m_ImagerParameters.m_fUnixTime = inputs[i]->obsInfo.startTime;
-        imager[i].Initialise(0);
    }
    #pragma omp parallel for num_threads(num_gpus)
    for(int i = 0; i < inputs.size(); i++){
@@ -150,8 +133,7 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
     }
 
     std::cout << "Running imager.." << std::endl;
-    auto images = imager[gpu_id].run_imager(xcorr, -1, -1, imageSize, FOV_degrees, 
-        MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
+    auto images = imager[gpu_id]->run_imager(xcorr, imageSize, MinUV, szWeighting.c_str());
 
     if(dm_list.size() == 0){
         // no dedispersion, save images

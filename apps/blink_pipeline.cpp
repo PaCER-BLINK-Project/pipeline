@@ -228,7 +228,7 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:GLA:b:uP:D:S:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -282,14 +282,6 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
             }
             case 'o' : {
                 opts.outputDir = std::string {optarg};
-                break;
-            }
-            case 'L' : {
-                CImagerParameters::m_bApplyCableCorr = true;
-                break;
-            }
-            case 'G' : {
-                CImagerParameters::m_bApplyGeomCorr = true;
                 break;
             }            
             case 'M': {
