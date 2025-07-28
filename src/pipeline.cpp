@@ -77,8 +77,8 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     for(int i {0}; i < num_gpus; i++){
         imager[i] = new CPacerImagerHip {metadataFile, flagged_antennas, averageImages};
         if(i > 0) {
-            cal_sol[i] = cal_sol[0];
-            mapping[i] = mapping[0];
+            if(calibrate) cal_sol[i] = cal_sol[0];
+            if(reorder) mapping[i] = mapping[0];
         }
     }
 }
