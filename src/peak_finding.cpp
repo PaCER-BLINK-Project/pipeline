@@ -19,9 +19,9 @@ struct Candidate {
 void peakfinding_simple_avg(float *dm_starttime, int side_size, std::vector<float>& dm_list, int window_start_idx, int buffer_size, 
         int table_size, int global_offset, const std::vector<float>& norm_factors, float SNR, std::string filename){
     
-    int n_dms = dm_list.size();
-    int width = n_dms * table_size * side_size;
-    int cell_size = n_dms * table_size;
+    unsigned long long n_dms = dm_list.size();
+    unsigned long long  width = n_dms * table_size * side_size;
+    unsigned long long  cell_size = n_dms * table_size;
 
     std::vector<Candidate> candidates;    
     #pragma omp parallel for collapse(2)

@@ -56,8 +56,8 @@ void compute_partial_dedispersion_kernel(Complex<float>* images, unsigned long l
         return (window_start_idx + offset) % table_size;
     };
 
-    long long cell_size = n_dms * table_size;
-    long long width = cell_size * side_size;
+    unsigned long long cell_size = n_dms * table_size;
+    unsigned long long width = cell_size * side_size;
     
 
     int end_freq = start_freq_idx - freq_batch_size + 1;
