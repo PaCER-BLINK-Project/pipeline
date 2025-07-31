@@ -75,11 +75,14 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     if(reorder) mapping[0] = get_visibilities_mapping(this->MetaDataFile);
 
     for(int i {0}; i < num_gpus; i++){
+        gpuSetDevice(i);
         imager[i] = new CPacerImagerHip {metadataFile, flagged_antennas, averageImages};
         if(i > 0) {
             if(calibrate) cal_sol[i] = cal_sol[0];
             if(reorder) mapping[i] = mapping[0];
         }
+        mapping[i].to_gpu();
+        cal_sol[i].to_gpu();
     }
 }
 
@@ -89,8 +92,8 @@ void blink::Pipeline::process_buffer(){
    // get_elements(dm_starttime, imageSize, dm_list.size(), 0, window_start_idx, move_ahead, table_size, norm_factors[0], 58, 630);
    // Time to use and clear buffer
    peakfinding_simple_avg(dm_starttime, imageSize, dm_list, window_start_idx, move_ahead, table_size, global_offset, norm_factors, SNR, output_dir + "/candidates.bin");
-   dump_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, move_ahead, table_size, output_dir + "/time_series.bin",  514, 539);
-      // step 3, clear and rotate the buffer
+   // dump_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, move_ahead, table_size, output_dir + "/time_series.bin",  514, 539);
+    // step 3, clear and rotate the buffer
    clear_buffer(dm_starttime, imageSize, dm_list.size(), window_start_idx, table_size, move_ahead);
    window_offset -= move_ahead;
    window_start_idx = (window_start_idx + move_ahead) % table_size;
