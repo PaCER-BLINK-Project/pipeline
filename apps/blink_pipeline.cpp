@@ -49,7 +49,7 @@ struct ProgramOptions {
     double fRAdeg;
     double fDECdeg;
     float SNR;
-    
+    Polarization pol_to_image;
     // flagging antennas:
     string gFlaggedAntennasListString;
     vector<int> gFlaggedAntennasList;
@@ -96,7 +96,7 @@ int main(int argc, char **argv){
         opts.nChannelsToAvg, opts.integrationTime, opts.reorder, opts.szCalibrationSolutionsFile.length() > 0,
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
-        opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages,
+        opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages, opts.pol_to_image,
         opts.gFlaggedAntennasList, dedisp_engine, opts.outputDir
     };
 
@@ -202,6 +202,7 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-P : set phase centre to RA_DEG,DEC_DEG, example -P 148.2875,7.92638889 to have B0950+08 in the phase centre\n"
     "\t-D : comma-separated list of DM trials (e.g. -D 0,0.5,1,1.5) \n"
     "\t-S : Signal to Noise (SNR) threshold level for declaring a detection.\n"
+    "\t-E : polarization product to image. Options are: XX, YY, I (Stokes I)\n"
     "\t"
     << std::endl;
 }
@@ -231,7 +232,7 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -333,7 +334,18 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
                }
                break;
             }
-
+            case 'E': {
+                if(optarg == std::string {"XX"}){
+                    opts.pol_to_image = Polarization::XX;
+                }else if(optarg == std::string {"YY"}){
+                    opts.pol_to_image = Polarization::YY;
+                }else if(optarg == std::string {"I"}){
+                    opts.pol_to_image = Polarization::I;
+                }else{
+                    throw std::invalid_argument("Value for polarization to image not recognised. Valid options are 'XX', 'YY', and 'I'.");
+                }
+                break;
+            }
             
             case 'w' : {
                if( optarg ){

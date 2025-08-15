@@ -57,7 +57,7 @@ namespace blink {
         Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
                   int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, 
                   bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
-                  double FOV_degrees, bool averageImages,
+                  double FOV_degrees, bool averageImages, Polarization pol_to_image,
                   vector<int>& flagged_antennas, Dedispersion& dedisp_engine, std::string& output_dir
                 );
         
