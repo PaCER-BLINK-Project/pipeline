@@ -25,7 +25,7 @@
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file, 
     int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, bool printImageStats, 
     std::string szWeighting, std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, Polarization pol_to_image,
-    vector<int>& flagged_antennas,  Dedispersion& dedisp_engine, std::string& output_dir) : dedisp_engine {dedisp_engine} {
+    vector<int>& flagged_antennas, bool change_phase_centre, double ra_deg, double dec_deg, Dedispersion& dedisp_engine, std::string& output_dir) : dedisp_engine {dedisp_engine} {
 
     gpuGetDeviceCount(&num_gpus);
     if(num_gpus == 0){
@@ -59,6 +59,8 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     for(int i {0}; i < num_gpus; i++){
         gpuSetDevice(i);
         imager[i] = new CPacerImagerHip {metadataFile, flagged_antennas, averageImages, pol_to_image};
+        if(change_phase_centre) imager[i]->m_MetaData.set_phase_centre(ra_deg, dec_deg);
+        
         if(i > 0) {
             if(calibrate) cal_sol[i] = cal_sol[0];
             if(reorder) mapping[i] = mapping[0];

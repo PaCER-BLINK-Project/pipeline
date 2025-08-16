@@ -97,7 +97,7 @@ int main(int argc, char **argv){
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages, opts.pol_to_image,
-        opts.gFlaggedAntennasList, dedisp_engine, opts.outputDir
+        opts.gFlaggedAntennasList, opts.bChangePhaseCentre, opts.fRAdeg, opts.fDECdeg, dedisp_engine, opts.outputDir
     };
 
     bool on_gpu = num_available_gpus() > 0;
