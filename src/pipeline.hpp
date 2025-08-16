@@ -58,7 +58,8 @@ namespace blink {
                   int imageSize, std::string metadataFile, std::string szAntennaPositionsFile, double minUV, 
                   bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
                   double FOV_degrees, bool averageImages, Polarization pol_to_image,
-                  vector<int>& flagged_antennas, Dedispersion& dedisp_engine, std::string& output_dir
+                  vector<int>& flagged_antennas,bool change_phase_centre, double ra_deg, double dec_deg,
+                  Dedispersion& dedisp_engine, std::string& output_dir
                 );
         
         void run(const Voltages& input, int gpu_id);
