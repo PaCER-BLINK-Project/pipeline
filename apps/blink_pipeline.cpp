@@ -211,7 +211,7 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-P : set phase centre to RA_DEG,DEC_DEG, example -P 148.2875,7.92638889 to have B0950+08 in the phase centre\n"
     "\t-D : comma-separated list of DM trials (e.g. -D 0,0.5,1,1.5) \n"
     "\t-S : Signal to Noise (SNR) threshold level for declaring a detection.\n"
-    "\t-E : polarization product to image. Options are: XX, YY, I (Stokes I)\n"
+    "\t-E : polarization product to image. Options are: XX, YY, I (Stokes I). Default is I.\n"
     "\t"
     << std::endl;
 }
@@ -236,6 +236,7 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.fRAdeg = 0.00;
     opts.fDECdeg = 0.00;
     opts.SNR = 5.0f;
+    opts.pol_to_image = Polarization::I;
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
