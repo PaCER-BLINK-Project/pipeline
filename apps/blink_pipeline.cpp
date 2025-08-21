@@ -11,13 +11,22 @@
 
 #include <pacer_imager.h>
 // profiling :
-#include <mystring.h>
-#include <myparser.h>
-#include <mydate.h>
-#include <mystrtable.h>
 #include <pacer_imager_defs.h>
 #include <dedispersion.hpp>
 #include "../src/files.hpp"
+
+namespace {
+    std::vector<std::string> tokenize_string(std::string str, char delimiter=','){    
+        std::stringstream ss(str);
+        std::string token;
+        std::vector<std::string> tokens;
+
+        while (std::getline(ss, token, delimiter)) {
+            tokens.push_back(token);
+        }
+        return tokens;
+    }
+}
 
 struct ProgramOptions {
     std::vector<std::string> input_files;
@@ -386,21 +395,17 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     if(opts.integrationTime <= 0) throw std::invalid_argument("You must specify a value for the integration time.");
     if(opts.input_files.size() == 0) throw std::invalid_argument("No input file specified.");
     
-    if( strlen(opts.gFlaggedAntennasListString.c_str()) > 0 ){
-       MyParser pars=opts.gFlaggedAntennasListString.c_str();
-       CMyStrTable items;
-       pars.GetItemsNew( items, "," );
+    if(strlen(opts.gFlaggedAntennasListString.c_str()) > 0 ){
+        auto items = ::tokenize_string(opts.gFlaggedAntennasListString);
        for(int i=0;i<items.size();i++){
-          opts.gFlaggedAntennasList.push_back( atol( items[i].c_str() ) );
+          opts.gFlaggedAntennasList.push_back(atol( items[i].c_str()));
        }
     }
 
     if(opts.dm_list_string.length() > 0 ){
-       MyParser pars=opts.dm_list_string.c_str();
-       CMyStrTable items;
        if(opts.dm_list_string.find(":") != std::string::npos){
             // dm trials specified with min:max:step
-            pars.GetItemsNew( items, ":" );
+            auto items = ::tokenize_string(opts.dm_list_string, ':');
             float dm_start = atof(items[0].c_str());
             float dm_stop = atof(items[1].c_str());
             float dm_delta = atof(items[2].c_str());
@@ -411,9 +416,9 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
             }
        }else{
             // dm trials specified explicitly with a list
-            pars.GetItemsNew( items, "," );
+            auto items = ::tokenize_string(opts.dm_list_string);
             for(int i=0;i<items.size();i++){
-                opts.dm_list.push_back( atof(items[i].c_str()));
+                opts.dm_list.push_back(atof(items[i].c_str()));
             }
        }
     }
