@@ -29,7 +29,9 @@ namespace {
 }
 
 struct ProgramOptions {
-    std::vector<std::string> input_files;
+    std::string input_directory;
+    int seconds_offset;
+    int seconds_count;
     std::string outputDir;
     unsigned int nChannelsToAvg;
     double integrationTime;
@@ -111,51 +113,44 @@ int main(int argc, char **argv){
     };
 
     bool on_gpu = num_available_gpus() > 0;
-    if(opts.input_files.size() == 1){
-        std::string& filename = opts.input_files[0];
-        ObservationInfo obs_info = parse_mwa_phase1_dat_file_info(filename);
-        obs_info.coarse_channel_index = opts.coarseChannelIndex;
-        unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
-        auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps);
-        pipeline.run(volt, 0);
-    }else{
-        auto observation = parse_mwa_dat_files(opts.input_files);
-        if(opts.dm_list.size() > 0){
-            // enabled dedispersion
-            auto frequencies = get_frequencies(observation[0], opts.nChannelsToAvg);
-            pipeline.dedisp_engine.initialise(frequencies, opts.integrationTime);
+   
+    auto observation = parse_mwa_dat_files(opts.input_directory, opts.seconds_offset, opts.seconds_count);
+    std::cout << "Will process " << observation.size() << " seconds of observation." << std::endl;
+    if(opts.dm_list.size() > 0){
+        // enabled dedispersion
+        auto frequencies = get_frequencies(observation[0], opts.nChannelsToAvg);
+        pipeline.dedisp_engine.initialise(frequencies, opts.integrationTime);
+    }
+    for (auto& one_second_data : observation) {
+        /* the std::vector memory allocator progressively allocates larger chunk of memory to
+            * make space for new elements, copying existing elements to the new memory location.
+            * In turn the MemoryBuffer copy contructor is called multiple times for the same object,
+            * wasting time and memory. The solution is to use smart pointers to Voltages object.
+            * In this way, smart pointers are the ones being copied over and over, instead of
+            * the object they point to.
+            */
+        std::vector<std::shared_ptr<Voltages>> voltages;
+        size_t ch_counter {0ull};
+        high_resolution_clock::time_point read_volt_start = high_resolution_clock::now();
+        #pragma omp parallel for schedule(static)
+        for(size_t i = 0; i < one_second_data.size(); i++){
+            auto dat_file = one_second_data[i];
+            std::string& filename {dat_file.first};
+            ObservationInfo obs_info {dat_file.second};
+            obs_info.coarse_channel_index = i;
+            unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
+            // std::cout << "Pipeline: reading in " << filename << std::endl;
+            auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps);
+            #pragma omp critical
+            voltages.emplace_back(std::make_shared<Voltages>(std::move(volt)));
         }
-        for (auto& one_second_data : observation) {
-            /* the std::vector memory allocator progressively allocates larger chunk of memory to
-             * make space for new elements, copying existing elements to the new memory location.
-             * In turn the MemoryBuffer copy contructor is called multiple times for the same object,
-             * wasting time and memory. The solution is to use smart pointers to Voltages object.
-             * In this way, smart pointers are the ones being copied over and over, instead of
-             * the object they point to.
-             */
-            std::vector<std::shared_ptr<Voltages>> voltages;
-            size_t ch_counter {0ull};
-            high_resolution_clock::time_point read_volt_start = high_resolution_clock::now();
-            #pragma omp parallel for schedule(static)
-            for(size_t i = 0; i < one_second_data.size(); i++){
-                auto dat_file = one_second_data[i];
-                std::string& filename {dat_file.first};
-                ObservationInfo obs_info {dat_file.second};
-                obs_info.coarse_channel_index = i;
-                unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
-                // std::cout << "Pipeline: reading in " << filename << std::endl;
-                auto volt = Voltages::from_dat_file(filename, obs_info, integration_steps);
-                #pragma omp critical
-                voltages.emplace_back(std::make_shared<Voltages>(std::move(volt)));
-            }
-            high_resolution_clock::time_point read_volt_end = high_resolution_clock::now();
-            duration<double> volt_dur = duration_cast<duration<double>>(read_volt_end - read_volt_start);
-            std::cout << "Reading voltages took " << volt_dur.count() << " seconds." << std::endl;
-            pipeline.run(voltages);
-        }
-        if(pipeline.dedisp_engine.is_initialised()){
-            pipeline.dedisp_engine.process_buffer();
-        }
+        high_resolution_clock::time_point read_volt_end = high_resolution_clock::now();
+        duration<double> volt_dur = duration_cast<duration<double>>(read_volt_end - read_volt_start);
+        std::cout << "Reading voltages took " << volt_dur.count() << " seconds." << std::endl;
+        pipeline.run(voltages);
+    }
+    if(pipeline.dedisp_engine.is_initialised()){
+        pipeline.dedisp_engine.process_buffer();
     }
 }
 
@@ -176,7 +171,7 @@ std::vector<float> get_frequencies(const std::vector<DatFile>& one_second, int c
 
 
 void print_help(std::string exec_name, ProgramOptions& opts ){
-    std::cout << "\n" << exec_name << " -t <int time> [-c <cnls>] [-o <outdir>] DATFILE1 [DATFILE2 [DATFILE3 [...]]]\n"
+    std::cout << "\n" << exec_name << " -t <int time> -I <input directory> [-c <cnls>] [-o <outdir>]\n"
     "\nProgram options:\n-------------\n"
     "\nCorrelator options:\n"
     "\t-t <integration time>: duration of the time interval to integrate over. Accepts a timespec (see below).\n"
@@ -212,6 +207,9 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-D : comma-separated list of DM trials (e.g. -D 0,0.5,1,1.5) \n"
     "\t-S : Signal to Noise (SNR) threshold level for declaring a detection.\n"
     "\t-E : polarization product to image. Options are: XX, YY, I (Stokes I). Default is I.\n"
+    "\t-I : path to the directory containing the input .dat files.\n"
+    "\t-X : starting second to process, expressed as number of seconds from the start of the observation. Default is 0.\n"
+    "\t-Q : number of seconds of observation to process. Default is all, starting from the offset (-M).\n"
     "\t"
     << std::endl;
 }
@@ -238,12 +236,14 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.SNR = 5.0f;
     opts.pol_to_image = Polarization::I;
     opts.oversampling_factor = 2.0f;
+    opts.seconds_count = -1;
+    opts.seconds_offset = 0;
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -334,7 +334,18 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
                 opts.ImageSize = atoi(optarg);
                 break;
             }
-
+            case 'X': {
+                opts.seconds_offset = atoi(optarg);
+                break;
+            }
+            case 'Q': {
+                opts.seconds_count = atoi(optarg);
+                break;
+            }
+            case 'I': {
+                opts.input_directory = std::string {optarg};
+                break;
+            }
             case 'P' : {
                if( optarg && strlen(optarg) ){
                    char szTmp[64];
@@ -394,12 +405,12 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
             }
         }
     }
-    for(; optind < argc; optind++) opts.input_files.push_back({argv[optind]});
     
     // options validation
     if(opts.integrationTime <= 0) throw std::invalid_argument("You must specify a value for the integration time.");
-    if(opts.input_files.size() == 0) throw std::invalid_argument("No input file specified.");
-    
+    if(opts.input_directory == "") throw std::invalid_argument("No input directory specified.");
+    if(!blink::dir_exists(opts.input_directory)) throw std::invalid_argument("Invalid input directory specified.");
+
     if(strlen(opts.gFlaggedAntennasListString.c_str()) > 0 ){
         auto items = ::tokenize_string(opts.gFlaggedAntennasListString);
        for(int i=0;i<items.size();i++){
