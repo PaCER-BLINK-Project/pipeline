@@ -59,6 +59,7 @@ struct ProgramOptions {
     double fDECdeg;
     float SNR;
     Polarization pol_to_image;
+    float oversampling_factor;
     // flagging antennas:
     string gFlaggedAntennasListString;
     vector<int> gFlaggedAntennasList;
@@ -103,7 +104,7 @@ int main(int argc, char **argv){
     // TODO : replace all these options to just ProgramOptions& opts - not doing it now !
     blink::Pipeline pipeline  {
         opts.nChannelsToAvg, opts.integrationTime, opts.reorder, opts.szCalibrationSolutionsFile.length() > 0,
-        opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile,
+        opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile, opts.oversampling_factor,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages, opts.pol_to_image,
         opts.gFlaggedAntennasList, opts.bChangePhaseCentre, opts.fRAdeg, opts.fDECdeg, dedisp_engine, opts.outputDir
@@ -205,8 +206,7 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-v VERBOSITY/DEBUG level [default ??? ]\n" // TO-ADD CPacerImager::m_ImagerDebugLevel but I am not used to cout 
     "\t-V FILE_SAVE_LEVEL : to control number of FITS files saved [default ???]\n" // TO-ADD CPacerImager::m_SaveFilesLevel I am not used to cout 
     "\t-C frequency_channel to image [default -1 - means all]\n"
-    "\t-G : apply geometric correction\n"
-    "\t-L : apply cable correction\n"
+    "\t-O : oversampling factor (default: 2.0)\n"
     "'t-u : average images across frequency channels and timesteps.\n"
     "\t-P : set phase centre to RA_DEG,DEC_DEG, example -P 148.2875,7.92638889 to have B0950+08 in the phase centre\n"
     "\t-D : comma-separated list of DM trials (e.g. -D 0,0.5,1,1.5) \n"
@@ -237,12 +237,13 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.fDECdeg = 0.00;
     opts.SNR = 5.0f;
     opts.pol_to_image = Polarization::I;
+    opts.oversampling_factor = 2.0f;
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -287,7 +288,10 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
                }
                break;
             }
-
+            case 'O': {
+                opts.oversampling_factor = atof(optarg);
+                break;
+            }
 
             case 't': {
                 opts.integrationTime = parse_timespec(optarg);
