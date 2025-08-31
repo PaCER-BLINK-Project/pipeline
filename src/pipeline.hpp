@@ -19,7 +19,7 @@ namespace blink {
     class Pipeline {
 
         std::vector<CPacerImagerHip*> imager;
-        std::string output_dir;
+        std::string output_dir, postfix;
         bool calibrate {false};
         bool reorder {false};
         // Correlation-related options
@@ -59,7 +59,7 @@ namespace blink {
                   double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
                   double FOV_degrees, bool averageImages, Polarization pol_to_image,
                   vector<int>& flagged_antennas,bool change_phase_centre, double ra_deg, double dec_deg,
-                  Dedispersion& dedisp_engine, std::string& output_dir
+                  Dedispersion& dedisp_engine, std::string& output_dir, std::string& postfix
                 );
         
         void run(const Voltages& input, int gpu_id);

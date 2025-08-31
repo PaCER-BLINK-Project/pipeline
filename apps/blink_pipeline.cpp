@@ -65,7 +65,7 @@ struct ProgramOptions {
     // flagging antennas:
     string gFlaggedAntennasListString;
     vector<int> gFlaggedAntennasList;
-
+    std::string postfix;
     string dm_list_string;
     vector<float> dm_list;
 
@@ -101,7 +101,7 @@ int main(int argc, char **argv){
     print_program_options(opts);
     int n_timesteps {static_cast<int>(1.0 / opts.integrationTime)}; // TODO: generalise to number of time steps
     blink::dedispersion::Dedispersion dedisp_engine {opts.dm_list, opts.ImageSize,
-        n_timesteps, 2 * n_timesteps, opts.SNR, opts.outputDir};
+        n_timesteps, 2 * n_timesteps, opts.SNR, opts.outputDir, opts.postfix};
 
     // TODO : replace all these options to just ProgramOptions& opts - not doing it now !
     blink::Pipeline pipeline  {
@@ -109,7 +109,8 @@ int main(int argc, char **argv){
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile, opts.oversampling_factor,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages, opts.pol_to_image,
-        opts.gFlaggedAntennasList, opts.bChangePhaseCentre, opts.fRAdeg, opts.fDECdeg, dedisp_engine, opts.outputDir
+        opts.gFlaggedAntennasList, opts.bChangePhaseCentre, opts.fRAdeg, opts.fDECdeg, dedisp_engine,
+        opts.outputDir, opts.postfix
     };
 
     bool on_gpu = num_available_gpus() > 0;
@@ -210,6 +211,7 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-I : path to the directory containing the input .dat files.\n"
     "\t-X : starting second to process, expressed as number of seconds from the start of the observation. Default is 0.\n"
     "\t-Q : number of seconds of observation to process. Default is all, starting from the offset (-M).\n"
+    "\t-p <postfix>: a string to optionally append to the end of output file names.\n"
     "\t"
     << std::endl;
 }
@@ -243,10 +245,14 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:p:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
+            case 'p': {
+                opts.postfix = optarg;
+                break;
+            }
             case 'r': {
                 opts.reorder = 1;
                 break;

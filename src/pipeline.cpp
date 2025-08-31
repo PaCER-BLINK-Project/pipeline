@@ -26,7 +26,8 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     std::string solutions_file, int imageSize, std::string metadataFile, float oversampling_factor,
     std::string szAntennaPositionsFile, double minUV, bool printImageStats, std::string szWeighting, 
     std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, Polarization pol_to_image,
-    vector<int>& flagged_antennas, bool change_phase_centre, double ra_deg, double dec_deg, Dedispersion& dedisp_engine, std::string& output_dir) : dedisp_engine {dedisp_engine} {
+    vector<int>& flagged_antennas, bool change_phase_centre, double ra_deg, double dec_deg, Dedispersion& dedisp_engine,
+    std::string& output_dir, std::string& postfix) : dedisp_engine {dedisp_engine} {
 
     gpuGetDeviceCount(&num_gpus);
     if(num_gpus == 0){
@@ -52,6 +53,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->FOV_degrees = FOV_degrees;
     this->reorder = reorder;
     this->output_dir = output_dir;
+    this->postfix = postfix;
     this->bZenithImage = false;
 
     if(calibrate) cal_sol[0] = CalibrationSolutions::from_file(this->calibration_solutions_file);
