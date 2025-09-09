@@ -76,7 +76,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
 
 
 void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
-    if(dedisp_engine.buffer_is_full())
+    if(dedisp_engine.is_initialised() && dedisp_engine.buffer_is_full())
         dedisp_engine.process_buffer();
    
    #pragma omp parallel for num_threads(num_gpus)
@@ -84,7 +84,8 @@ void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
         const auto& input = inputs[i];
         run(*input, i % num_gpus);
    }
-   dedisp_engine.increase_offset();
+   if(dedisp_engine.is_initialised()) dedisp_engine.increase_offset();
+   if(pDynamicSp) pDynamicSp->increase_offset();
 }
 
 void blink::Pipeline::run(const Voltages& input, int gpu_id){
@@ -115,23 +116,32 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
 
     if(!dedisp_engine.is_initialised()){
         // no dedispersion, save images
-        std::cout << "Saving images to disk..." << std::endl;
         high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
         images.to_cpu();
         if(rfi_flagging > 0){
-            auto flags = flag_rfi(images, rfi_flagging, 40, false);
-            // only saves flagged images, for testing
-            size_t flagged {0};
-            for(size_t i {0}; i < flags.size(); i++){
-                if(flags[i]){
-                    size_t interval {i / images.nFrequencies};
-                    size_t fine_channel {i % images.nFrequencies};
-                    images.to_fits_file(interval, fine_channel, output_dir);
-                    flagged++;
-                }
-            }
-            std::cout << "Saved " << flagged << " images flagged as RFI.." << std::endl;
-        }else{
+            std::cout << "Applying RFI flagging..." << std::endl;
+            flag_rfi(images, rfi_flagging, 40, false);
+        }
+        if(pDynamicSp) {
+            std::cout << "Adding images to dynamic spectrum.." << std::endl;
+            pDynamicSp->add_images(images);
+        }
+        // if(rfi_flagging > 0){
+        //     // only saves flagged images, for testing
+        //     const auto flags = images.get_flags();
+        //     size_t flagged {0};
+        //     for(size_t i {0}; i < flags.size(); i++){
+        //         if(flags[i]){
+        //             size_t interval {i / images.nFrequencies};
+        //             size_t fine_channel {i % images.nFrequencies};
+        //             images.to_fits_file(interval, fine_channel, output_dir);
+        //             flagged++;
+        //         }
+        //     }
+        //     std::cout << "Saved " << flagged << " images flagged as RFI.." << std::endl;
+        // }
+        else{
+            std::cout << "Saving images to disk..." << std::endl;
             images.to_fits_files(output_dir);
         }
         high_resolution_clock::time_point save_image_end = high_resolution_clock::now();

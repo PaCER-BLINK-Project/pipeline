@@ -14,6 +14,8 @@
 #include <pacer_imager_defs.h>
 #include <dedispersion.hpp>
 #include "../src/files.hpp"
+#include "../src/dynamic_spectrum.hpp"
+
 
 namespace {
     std::vector<std::string> tokenize_string(std::string str, char delimiter=','){    
@@ -69,6 +71,7 @@ struct ProgramOptions {
     string dm_list_string;
     vector<float> dm_list;
     float rfi_flagging;
+    std::pair<int, int> ds_pixel;
 
 };
 
@@ -113,15 +116,22 @@ int main(int argc, char **argv){
         opts.gFlaggedAntennasList, opts.bChangePhaseCentre, opts.fRAdeg, opts.fDECdeg, dedisp_engine,
         opts.rfi_flagging, opts.outputDir, opts.postfix
     };
-
-    bool on_gpu = num_available_gpus() > 0;
    
     auto observation = parse_mwa_dat_files(opts.input_directory, opts.seconds_offset, opts.seconds_count);
+    auto frequencies_list = get_frequencies(observation[0], opts.nChannelsToAvg);
     std::cout << "Will process " << observation.size() << " seconds of observation." << std::endl;
+
+    bool dynamic_spectrum_mode_enabled = opts.ds_pixel != std::make_pair<int, int>(-1, -1);
+    if(dynamic_spectrum_mode_enabled){
+        auto pDynamicSpectrum = std::make_shared<DynamicSpectrum>(observation.size() * n_timesteps,
+            frequencies_list.size() - 1, n_timesteps, opts.ds_pixel.first, opts.ds_pixel.second);
+        pipeline.set_dynamic_spectrum(pDynamicSpectrum);
+        std::cout << "Enabled dynamic spectrum mode.." << std::endl;
+    }
+
     if(opts.dm_list.size() > 0){
         // enabled dedispersion
-        auto frequencies = get_frequencies(observation[0], opts.nChannelsToAvg);
-        pipeline.dedisp_engine.initialise(frequencies, opts.integrationTime);
+        pipeline.dedisp_engine.initialise(frequencies_list, opts.integrationTime);
     }
     for (auto& one_second_data : observation) {
         /* the std::vector memory allocator progressively allocates larger chunk of memory to
@@ -154,6 +164,7 @@ int main(int argc, char **argv){
     if(pipeline.dedisp_engine.is_initialised()){
         pipeline.dedisp_engine.process_buffer();
     }
+    if(dynamic_spectrum_mode_enabled) pipeline.save_dynamic_spectrum();
 }
 
 std::vector<float> get_frequencies(const std::vector<DatFile>& one_second, int chnls_to_avg){
@@ -214,6 +225,7 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-Q : number of seconds of observation to process. Default is all, starting from the offset (-M).\n"
     "\t-p <postfix>: a string to optionally append to the end of output file names.\n"
     "\t-f <threshold> enable RFI/bad channel flagging by discarding all images whose noise level is <threshold> times the average rms.\n"
+    "\t-d <x,y> compute the dynamic spectrum for the (x, y) pixel.\n"
     "\t"
     << std::endl;
 }
@@ -243,12 +255,13 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.seconds_count = -1;
     opts.seconds_offset = 0;
     opts.rfi_flagging = -1.0f;
+    opts.ds_pixel = std::make_pair(-1, -1);
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:p:f:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:p:f:d:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
@@ -258,6 +271,12 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
             }
             case 'f': {
                 opts.rfi_flagging = atof(optarg);
+                break;
+            }
+            case 'd': {
+                auto items = ::tokenize_string(optarg, ',');
+                if(items.size() != 2) throw std::invalid_argument {"Invalid pixel specification for the -d option."};
+                opts.ds_pixel = std::make_pair(atoi(items[0].c_str()), atoi(items[1].c_str()));
                 break;
             }
             case 'r': {

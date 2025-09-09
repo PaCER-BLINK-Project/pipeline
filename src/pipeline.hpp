@@ -3,12 +3,15 @@
 
 #include <vector>
 #include <string>
+#include <memory>
 #include <astroio.hpp>
 #include <utils.hpp>
 #include <memory>
 #include <calibration.hpp>
 #include <gpu/pacer_imager_hip.h>
 #include <dedispersion.hpp>
+#include "dynamic_spectrum.hpp"
+
 
 using namespace blink::dedispersion;
 
@@ -19,6 +22,7 @@ namespace blink {
     class Pipeline {
 
         std::vector<CPacerImagerHip*> imager;
+        std::shared_ptr<DynamicSpectrum> pDynamicSp {nullptr};
         std::string output_dir, postfix;
         bool calibrate {false};
         bool reorder {false};
@@ -68,6 +72,8 @@ namespace blink {
         
         void run(const Voltages& input, int gpu_id);
         void run(const std::vector<std::shared_ptr<Voltages>>& inputs);
+        void set_dynamic_spectrum(std::shared_ptr<DynamicSpectrum> p) {pDynamicSp = p;};
+        void save_dynamic_spectrum() {pDynamicSp->to_fits_file(output_dir + "/dynamic_spectrum.fits");};
 
         ~Pipeline() {
             for(CPacerImagerHip* p : imager) delete p;

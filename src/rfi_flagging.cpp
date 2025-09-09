@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <numeric>
+#include <limits>
 #include <mycomplex.hpp>
 #include <images.hpp>
 
@@ -18,50 +20,57 @@ T compute_iqr_rms(const std::vector<T>& values){
 }
 
 
+template <typename T>
+T compute_running_rms(const std::vector<T>& values, int threshold = 4){
+    size_t count_all = values.size();
+    T sum_all = std::accumulate(values.begin(), values.end(), 0);
+    T mean_all {sum_all / count_all};
+    
+    // Now calculate the variance
+    auto variance_func = [&mean_all, &count_all](T accumulator, const T& val) {
+        return accumulator + ((val - mean_all)*(val - mean_all) / (count_all - 1));
+    };
+    T variance = std::accumulate(values.begin(), values.end(), 0.0, variance_func);
+    T stdev = std::sqrt(variance);
+
+    size_t count {0};
+    T sum {0}, sum2 {0}, mean {0}, rms {0};
+    for(const T& val : values){
+        if(!std::isnan(val) && !std::isinf(val) && (std::abs(val - mean_all) / stdev) < threshold ){
+            sum += val;
+            sum2 += val*val;
+            count += 1;   
+        }
+    }
+    if(count == 0) return std::numeric_limits<T>::infinity();
+    mean = sum / count;
+    rms = std::sqrt(sum2 / count - mean*mean);
+    return rms;
+}
+
 
 float compute_image_rms(const Complex<float>* data, int side_size, int radius, bool compute_iqr){
-    double sum {0.0};
-    double sum2 {0.0};
-    int cnt {0};
-    double iqr {0.0};
-    double rms_iqr {0.0};
-    double median {0.0};   
-    double rms {0.0}, mean {0.0};
     int center = side_size / 2;
-    
     int start = center - radius;
     int end = center + radius;
 
-    std::vector<float> iqr_values;
-    int nan_count = 0, total_count = 0;
+    std::vector<float> values;
 
     for(int y = start; y < end; y++){
         for(int x = start; x < end; x++){
             float val = data[y * side_size + x].real;
-            total_count++;
-            if(std::isnan(val) || std::isinf(val)){
-                nan_count++;
-                continue;
-            }
-            if(compute_iqr) iqr_values.push_back(val);
-            sum  += val;
-            sum2 += val*val;
-            cnt  += 1;
+            values.push_back(val);
         }
     }
-    
-    mean = sum / cnt;
-    rms = std::sqrt(sum2/cnt - mean*mean);
-
-    if(compute_iqr) return compute_iqr_rms(iqr_values);
-    return rms;
+    if(compute_iqr) return compute_iqr_rms(values);
+    else return compute_running_rms(values);
 }
 
 /**
     @brief: computes a vector of boolean values indicating which of the input images are contaminated
     by RFI. The function uses a high RMS as a signal for bad/corrupted channels.
 */
-std::vector<bool> flag_rfi(Images& images, double rms_threshold, int radius, bool compute_iqr){
+void flag_rfi(Images& images, double rms_threshold, int radius, bool compute_iqr){
     size_t n_images = images.size();
     std::vector<float> rms_vector (n_images);
     #pragma omp parallel for collapse(2) schedule(static)
@@ -70,7 +79,7 @@ std::vector<bool> flag_rfi(Images& images, double rms_threshold, int radius, boo
             rms_vector[i * images.nFrequencies + j] = compute_image_rms(reinterpret_cast<Complex<float>*>(images.at(i, j)), images.side_size, radius, compute_iqr);
         }
     }
-    float rms = compute_iqr_rms(rms_vector);
+    float rms = compute_iqr ? compute_iqr_rms(rms_vector) : compute_running_rms(rms_vector);
     // print some stats
     std::cout << "flag_rfi - "
     "min rms: " << *std::min_element(rms_vector.begin(), rms_vector.end()) << ", "
@@ -78,7 +87,7 @@ std::vector<bool> flag_rfi(Images& images, double rms_threshold, int radius, boo
     std::vector<bool> flags (n_images, false);
     // now compute avg rms of all rms
     for(size_t i {0}; i < rms_vector.size(); i++){
-        if(rms_vector[i] > rms_threshold * rms) flags[i] = true; 
+        if(rms_vector[i] > rms_threshold * rms) flags[i] = true;
     }
-    return flags;
+    images.set_flags(flags);
 }
