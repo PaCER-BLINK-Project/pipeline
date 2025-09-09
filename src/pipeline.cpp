@@ -18,7 +18,7 @@
 #include "gpu/dedispersion_gpu.hpp"
 #include "peak_finding.hpp"
 #include <gpu_macros.hpp>
-
+#include "rfi_flagging.hpp"
 
 
 // TODO: we could use an observation info structure here to pass values
@@ -27,7 +27,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     std::string szAntennaPositionsFile, double minUV, bool printImageStats, std::string szWeighting, 
     std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, Polarization pol_to_image,
     vector<int>& flagged_antennas, bool change_phase_centre, double ra_deg, double dec_deg, Dedispersion& dedisp_engine,
-    std::string& output_dir, std::string& postfix) : dedisp_engine {dedisp_engine} {
+    float rfi_flagging, std::string& output_dir, std::string& postfix) : dedisp_engine {dedisp_engine} {
 
     gpuGetDeviceCount(&num_gpus);
     if(num_gpus == 0){
@@ -55,6 +55,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->output_dir = output_dir;
     this->postfix = postfix;
     this->bZenithImage = false;
+    this->rfi_flagging = rfi_flagging;
 
     if(calibrate) cal_sol[0] = CalibrationSolutions::from_file(this->calibration_solutions_file);
     if(reorder) mapping[0] = get_visibilities_mapping(this->MetaDataFile);
@@ -117,8 +118,22 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         std::cout << "Saving images to disk..." << std::endl;
         high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
         images.to_cpu();
-
-        images.to_fits_files(output_dir);
+        if(rfi_flagging > 0){
+            auto flags = flag_rfi(images, rfi_flagging, 40, false);
+            // only saves flagged images, for testing
+            size_t flagged {0};
+            for(size_t i {0}; i < flags.size(); i++){
+                if(flags[i]){
+                    size_t interval {i / images.nFrequencies};
+                    size_t fine_channel {i % images.nFrequencies};
+                    images.to_fits_file(interval, fine_channel, output_dir);
+                    flagged++;
+                }
+            }
+            std::cout << "Saved " << flagged << " images flagged as RFI.." << std::endl;
+        }else{
+            images.to_fits_files(output_dir);
+        }
         high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
         duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
         std::cout << "Copying images to CPU took " << save_image_dur.count() << " seconds." << std::endl;

@@ -49,7 +49,11 @@ namespace blink {
         // flagged antennas :
         std::string szFlaggedAntennasListString;
         std::vector<int> szFlaggedAntennasList;
+        // RFI flagging threshold. A negative value disables
+        // flagging.
+        float rfi_flagging {-1.0};
         int num_gpus;
+        
         
         public:        
         Dedispersion dedisp_engine;
@@ -59,7 +63,7 @@ namespace blink {
                   double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
                   double FOV_degrees, bool averageImages, Polarization pol_to_image,
                   vector<int>& flagged_antennas,bool change_phase_centre, double ra_deg, double dec_deg,
-                  Dedispersion& dedisp_engine, std::string& output_dir, std::string& postfix
+                  Dedispersion& dedisp_engine, float rfi_flagging, std::string& output_dir, std::string& postfix
                 );
         
         void run(const Voltages& input, int gpu_id);
