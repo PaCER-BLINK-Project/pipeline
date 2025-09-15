@@ -72,6 +72,7 @@ struct ProgramOptions {
     vector<float> dm_list;
     float rfi_flagging;
     std::pair<int, int> ds_pixel;
+    int n_antennas;
 
 };
 
@@ -149,6 +150,7 @@ int main(int argc, char **argv){
             auto dat_file = one_second_data[i];
             std::string& filename {dat_file.first};
             ObservationInfo obs_info {dat_file.second};
+            if(opts.n_antennas > 0) obs_info.nAntennas = opts.n_antennas;
             obs_info.coarse_channel_index = i;
             unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
             // std::cout << "Pipeline: reading in " << filename << std::endl;
@@ -226,6 +228,7 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-p <postfix>: a string to optionally append to the end of output file names.\n"
     "\t-f <threshold> enable RFI/bad channel flagging by discarding all images whose noise level is <threshold> times the average rms.\n"
     "\t-d <x,y> compute the dynamic spectrum for the (x, y) pixel.\n"
+    "\t-R <n_antennas> : override the number of antennas (128)\n"
     "\t"
     << std::endl;
 }
@@ -256,15 +259,20 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.seconds_offset = 0;
     opts.rfi_flagging = -1.0f;
     opts.ds_pixel = std::make_pair(-1, -1);
+    opts.n_antennas = -1;
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:p:f:d:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:p:f:d:R:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
+            case 'R' : {
+                opts.n_antennas = atoi(optarg);
+                break;
+            }
             case 'p': {
                 opts.postfix = optarg;
                 break;
