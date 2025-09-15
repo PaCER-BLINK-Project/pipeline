@@ -62,7 +62,8 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
 
     for(int i {0}; i < num_gpus; i++){
         gpuSetDevice(i);
-        imager[i] = new CPacerImagerHip {metadataFile, flagged_antennas, averageImages, pol_to_image, oversampling_factor};
+        imager[i] = new CPacerImagerHip {metadataFile, imageSize, flagged_antennas, averageImages,
+            pol_to_image, oversampling_factor, MinUV, szWeighting.c_str()};
         if(change_phase_centre) imager[i]->m_MetaData.set_phase_centre(ra_deg, dec_deg);
         
         if(i > 0) {
@@ -112,7 +113,7 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
     }
 
     std::cout << "Running imager.." << std::endl;
-    auto images = imager[gpu_id]->run_imager(xcorr, imageSize, MinUV, szWeighting.c_str());
+    auto images = imager[gpu_id]->run(xcorr);
 
     if(!dedisp_engine.is_initialised()){
         // no dedispersion, save images
@@ -148,7 +149,7 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
         std::cout << "Copying images to CPU took " << save_image_dur.count() << " seconds." << std::endl;
     }else{
-        int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.nFrequencies - 1;
+        int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.n_channels - 1;
         high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();
         dedisp_engine.compute_partial_dedispersion_gpu(images, top_freq_idx);
         high_resolution_clock::time_point dedisp_end = high_resolution_clock::now();

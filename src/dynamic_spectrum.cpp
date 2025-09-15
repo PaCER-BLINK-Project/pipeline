@@ -11,12 +11,12 @@ void DynamicSpectrum::add_images(const Images& images){
 
     #pragma omp parallel for collapse(2) schedule (static)
     for(size_t interval {0}; interval < images.integration_intervals(); interval++){
-        for(size_t fine_channel {0}; fine_channel < images.nFrequencies; fine_channel++){
+        for(size_t fine_channel {0}; fine_channel < images.n_channels; fine_channel++){
             if(images.is_flagged(interval, fine_channel)) continue;
             const std::complex<float>* image = images.at(interval, fine_channel);
             float val = image[y * images.side_size + x].real();
             // TODO make sure lower fine channels are shown at the bottom
-            this->data()[(images.obsInfo.coarse_channel_index * images.nFrequencies + fine_channel) * n_timesteps + current_offset + interval] = val;
+            this->data()[(images.obsInfo.coarse_channel_index * images.n_channels + fine_channel) * n_timesteps + current_offset + interval] = val;
         }
     }
 }

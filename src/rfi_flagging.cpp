@@ -75,8 +75,8 @@ void flag_rfi(Images& images, double rms_threshold, int radius, bool compute_iqr
     std::vector<float> rms_vector (n_images);
     #pragma omp parallel for collapse(2) schedule(static)
     for(size_t i {0u}; i < images.integration_intervals(); i++){
-        for(size_t j {0u}; j < images.nFrequencies; j++){
-            rms_vector[i * images.nFrequencies + j] = compute_image_rms(reinterpret_cast<Complex<float>*>(images.at(i, j)), images.side_size, radius, compute_iqr);
+        for(size_t j {0u}; j < images.n_channels; j++){
+            rms_vector[i * images.n_channels + j] = compute_image_rms(reinterpret_cast<Complex<float>*>(images.at(i, j)), images.side_size, radius, compute_iqr);
         }
     }
     float rms = compute_iqr ? compute_iqr_rms(rms_vector) : compute_running_rms(rms_vector);
