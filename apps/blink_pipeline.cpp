@@ -71,7 +71,8 @@ struct ProgramOptions {
     string dm_list_string;
     vector<float> dm_list;
     float rfi_flagging;
-    std::pair<int, int> ds_pixel;
+    int ds_pixel[2];
+    int n_antennas;
 
 };
 
@@ -121,10 +122,10 @@ int main(int argc, char **argv){
     auto frequencies_list = get_frequencies(observation[0], opts.nChannelsToAvg);
     std::cout << "Will process " << observation.size() << " seconds of observation." << std::endl;
 
-    bool dynamic_spectrum_mode_enabled = opts.ds_pixel != std::make_pair<int, int>(-1, -1);
+    bool dynamic_spectrum_mode_enabled = opts.ds_pixel[0] >= 0 && opts.ds_pixel[1] >= 0;
     if(dynamic_spectrum_mode_enabled){
         auto pDynamicSpectrum = std::make_shared<DynamicSpectrum>(observation.size() * n_timesteps,
-            frequencies_list.size() - 1, n_timesteps, opts.ds_pixel.first, opts.ds_pixel.second);
+            frequencies_list.size() - 1, n_timesteps, opts.ds_pixel[0], opts.ds_pixel[1]);
         pipeline.set_dynamic_spectrum(pDynamicSpectrum);
         std::cout << "Enabled dynamic spectrum mode.." << std::endl;
     }
@@ -149,6 +150,7 @@ int main(int argc, char **argv){
             auto dat_file = one_second_data[i];
             std::string& filename {dat_file.first};
             ObservationInfo obs_info {dat_file.second};
+            if(opts.n_antennas > 0) obs_info.nAntennas = opts.n_antennas;
             obs_info.coarse_channel_index = i;
             unsigned int integration_steps {static_cast<unsigned int>(opts.integrationTime / obs_info.timeResolution)};
             // std::cout << "Pipeline: reading in " << filename << std::endl;
@@ -226,6 +228,7 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-p <postfix>: a string to optionally append to the end of output file names.\n"
     "\t-f <threshold> enable RFI/bad channel flagging by discarding all images whose noise level is <threshold> times the average rms.\n"
     "\t-d <x,y> compute the dynamic spectrum for the (x, y) pixel.\n"
+    "\t-R <n_antennas> : override the number of antennas (128)\n"
     "\t"
     << std::endl;
 }
@@ -255,16 +258,22 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.seconds_count = -1;
     opts.seconds_offset = 0;
     opts.rfi_flagging = -1.0f;
-    opts.ds_pixel = std::make_pair(-1, -1);
+    opts.ds_pixel[0] = -1;
+    opts.ds_pixel[1] = -1;
+    opts.n_antennas = -1;
     
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:p:f:d:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:p:f:d:R:";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
+            case 'R' : {
+                opts.n_antennas = atoi(optarg);
+                break;
+            }
             case 'p': {
                 opts.postfix = optarg;
                 break;
@@ -276,7 +285,8 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
             case 'd': {
                 auto items = ::tokenize_string(optarg, ',');
                 if(items.size() != 2) throw std::invalid_argument {"Invalid pixel specification for the -d option."};
-                opts.ds_pixel = std::make_pair(atoi(items[0].c_str()), atoi(items[1].c_str()));
+                opts.ds_pixel[0] = atoi(items[0].c_str());
+                opts.ds_pixel[1] = atoi(items[1].c_str());
                 break;
             }
             case 'r': {
