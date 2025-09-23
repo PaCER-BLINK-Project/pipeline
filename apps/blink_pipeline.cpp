@@ -7,6 +7,8 @@
 #include <sstream>
 #include <memory>
 #include <chrono>
+#include <regex>
+
 #include "../src/pipeline.hpp"
 
 #include <pacer_imager.h>
@@ -59,8 +61,7 @@ struct ProgramOptions {
     
     // change phase centre
     bool bChangePhaseCentre;
-    double fRAdeg;
-    double fDECdeg;
+    double ra_dec[2] {0.0, 0.0};
     float SNR;
     Polarization pol_to_image;
     float oversampling_factor;
@@ -80,7 +81,7 @@ struct ProgramOptions {
 void print_program_options(const ProgramOptions& opts);
 void parse_program_options(int argc, char** argv, ProgramOptions& opts);
 void print_help(std::string exec_name, ProgramOptions& opts);
-
+void parse_radec_string(const std::string& radec_string, double ra_dec[]);
 std::vector<float> get_frequencies(const std::vector<DatFile>& one_second, int chnls_to_avg);
 
 int main(int argc, char **argv){
@@ -114,7 +115,7 @@ int main(int argc, char **argv){
         opts.szCalibrationSolutionsFile, opts.ImageSize, opts.MetaDataFile, opts.oversampling_factor,
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages, opts.pol_to_image,
-        opts.gFlaggedAntennasList, opts.bChangePhaseCentre, opts.fRAdeg, opts.fDECdeg, dedisp_engine,
+        opts.gFlaggedAntennasList, opts.bChangePhaseCentre, opts.ra_dec[0], opts.ra_dec[1], dedisp_engine,
         opts.rfi_flagging, opts.outputDir, opts.postfix
     };
    
@@ -250,8 +251,6 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.FreqChannelToImage = -1; // image all channels
     opts.averageImages = false;
     opts.bChangePhaseCentre = false;
-    opts.fRAdeg = 0.00;
-    opts.fDECdeg = 0.00;
     opts.SNR = 5.0f;
     opts.pol_to_image = Polarization::I;
     opts.oversampling_factor = 2.0f;
@@ -389,15 +388,11 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
                 break;
             }
             case 'P' : {
-               if( optarg && strlen(optarg) ){
-                   char szTmp[64];
-                   strcpy(szTmp,optarg);
-                   const char* szRA = strtok(szTmp,",");
-                   opts.fRAdeg = atof(szRA);
-                   const char* szDEC = strtok(NULL,",");
-                   opts.fDECdeg = atof(szDEC);
+               if(optarg && strlen(optarg)){
+                    std::string radec_str {optarg};
+                   parse_radec_string(radec_str, opts.ra_dec);
                    opts.bChangePhaseCentre = true;
-                   printf("DEBUG : changing phase centre to (RA,DEC) = (%.8f,%.8f) [deg]\n",opts.fRAdeg,opts.fDECdeg);
+                   printf("DEBUG : changing phase centre to (RA,DEC) = (%.8f,%.8f) [deg]\n",opts.ra_dec[0], opts.ra_dec[1]);
                }
                break;
             }
@@ -464,6 +459,7 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
        if(opts.dm_list_string.find(":") != std::string::npos){
             // dm trials specified with min:max:step
             auto items = ::tokenize_string(opts.dm_list_string, ':');
+            if(items.size() != 3) throw std::invalid_argument("Invalid DM range specified.");
             float dm_start = atof(items[0].c_str());
             float dm_stop = atof(items[1].c_str());
             float dm_delta = atof(items[2].c_str());
@@ -491,4 +487,53 @@ void print_program_options(const ProgramOptions& opts){
     "\t Output directory: " << opts.outputDir << "\n"
     "\t Calibration file: " << opts.szCalibrationSolutionsFile << "\n"    
     "\t Zenith image: " << opts.bZenithImage << std::endl;
+}
+
+
+
+double ra_to_degrees(const std::string& ra_str) {
+    // RA format: HH:MM:SS(.ss), where HH=[00–23], MM=[00–59], SS=[00–59.99]
+    std::regex ra_pattern(R"(^(2[0-3]|1\d|0?\d):([0-5]?\d):([0-5]?\d(?:\.\d{1,2})?)$)");
+    std::smatch match;
+    if (!std::regex_match(ra_str, match, ra_pattern)) {
+        throw std::invalid_argument("Invalid RA format: " + ra_str);
+    }
+
+    int hours   = std::stoi(match[1]);
+    int minutes = std::stoi(match[2]);
+    double seconds = std::stod(match[3]);
+
+    return (hours + minutes / 60.0 + seconds / 3600.0) * 15.0;
+}
+
+double dec_to_degrees(const std::string& dec_str) {
+    // DEC must match ±DD:MM:SS(.ss), DD in [0,90], MM in [0,59], SS in [0,59.99]
+    std::regex dec_pattern(R"(^([+-])(\d{1,2}):(\d{1,2}):(\d{1,2}(?:\.\d{1,2})?)$)");
+    std::smatch match;
+    if (!std::regex_match(dec_str, match, dec_pattern)) {
+        throw std::invalid_argument("Invalid DEC format: " + dec_str);
+    }
+
+    char sign = match[1].str()[0];
+    int degrees = std::stoi(match[2]);
+    int minutes = std::stoi(match[3]);
+    double seconds = std::stod(match[4]);
+
+    double value = degrees + minutes / 60.0 + seconds / 3600.0;
+    return (sign == '-') ? -value : value;
+}
+
+void parse_radec_string(const std::string& radec_string, double ra_dec[]){
+    auto ra_dec_component_str = ::tokenize_string(radec_string, ',');
+    if(ra_dec_component_str.size() != 2)
+        throw std::invalid_argument {"Invalid RA DEC specification."};
+    if(radec_string.find(":") != std::string::npos){
+        // hours format
+        ra_dec[0] = ra_to_degrees(ra_dec_component_str[0]);
+        ra_dec[1] = dec_to_degrees(ra_dec_component_str[1]);
+    }else{
+        // already in degree format
+        ra_dec[0] = std::stod(ra_dec_component_str[0]);
+        ra_dec[1] = std::stod(ra_dec_component_str[1]);
+    }
 }
