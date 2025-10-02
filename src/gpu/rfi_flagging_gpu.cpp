@@ -1,12 +1,11 @@
 #include <vector>
-#include <algorithm>
 #include <cmath>
 #include <iostream>
-#include <numeric>
-#include <limits>
 #include <mycomplex.hpp>
 #include <images.hpp>
 #include <math.h>
+#include <memory_buffer.hpp>
+#include "../rfi_flagging.hpp"
 
 #define CHECK_RADIUS 50
 #define SELECTION_SIDE (CHECK_RADIUS * 2 + 1)
@@ -21,61 +20,16 @@
 #define NWARPS (NTHREADS / WARPSIZE)
 
 
-template <typename T>
-T compute_running_rms(const std::vector<T>& values, int threshold = 4){
-    size_t count_all = values.size();
-    T sum_all = std::accumulate(values.begin(), values.end(), 0);
-    T mean_all {sum_all / count_all};
-    
-    // Now calculate the variance
-    auto variance_func = [&mean_all, &count_all](T accumulator, const T& val) {
-        return accumulator + ((val - mean_all)*(val - mean_all) / (count_all - 1));
-    };
-    T variance = std::accumulate(values.begin(), values.end(), 0.0, variance_func);
-    T stdev = std::sqrt(variance);
-
-    size_t count {0};
-    T sum {0}, sum2 {0}, mean {0}, rms {0};
-    for(const T& val : values){
-        if(!std::isnan(val) && !std::isinf(val) && (std::abs(val - mean_all) / stdev) < threshold ){
-            sum += val;
-            sum2 += val*val;
-            count += 1;   
-        }
-    }
-    if(count == 0) return std::numeric_limits<T>::infinity();
-    mean = sum / count;
-    rms = std::sqrt(sum2 / count - mean*mean);
-    return rms;
-}
 
 
-float compute_image_rms(const Complex<float>* data, int side_size, int radius, bool compute_iqr){
-    int center = side_size / 2;
-    int start = center - radius;
-    int end = center + radius;
-
-    std::vector<float> values;
-
-    for(int y = start; y < end; y++){
-        for(int x = start; x < end; x++){
-            float val = data[y * side_size + x].real;
-            values.push_back(val);
-        }
-    }
-    if(compute_iqr) return compute_iqr_rms(values);
-    else return compute_running_rms(values);
-}
-
-
-__global__ void compute_images_rms(const Complex<float>*data, size_t side_size, size_t n_images, float *out_rms){
+__global__ void compute_images_rms(const Complex<float>*data, unsigned int side_size, unsigned int n_images, float *out_rms){
 
     const unsigned int grid_size {blockDim.x * gridDim.x};
     const unsigned int lane_id {threadIdx.x % warpSize};
     const unsigned int warp_id {threadIdx.x / warpSize};
-    const size_t image_size {side_size * side_size};
-    const int center {side_size / 2};
-    const int start_offset {center - radius};
+    const unsigned int image_size {side_size * side_size};
+    const unsigned int center {side_size / 2};
+    const unsigned int start_offset {center - CHECK_RADIUS};
     /* 
     Thread blocks are assigned disjoint sets of images to analyse.
     For each image assigned to a block central pixels are copied in 
@@ -91,18 +45,18 @@ __global__ void compute_images_rms(const Complex<float>*data, size_t side_size, 
         // STEP 1: copy data in shared memory, but also perform a a first step reduction.
         // ==============================================================================
         float sum {0.0f}, sum2 {0.0f};
-        for(int i {threadIdx.x}; i < SELECTION_SIDE * SELECTION_SIDE; i += blockDim.x){
-            int y {start_offset + (i / SELECTION_SIDE)};
-            int x {start_offset + (i % SELECTION_SIDE)};
+        for(unsigned int i {threadIdx.x}; i < SELECTION_SIDE * SELECTION_SIDE; i += blockDim.x){
+            unsigned int y {start_offset + (i / SELECTION_SIDE)};
+            unsigned int x {start_offset + (i % SELECTION_SIDE)};
             float val {image[y * side_size + x].real};
             sum += val;
             sum2 += val*val;
             centre_pixels[i] = val;
         }
-        for(int i {warpSize / 2}; i >= 1; i /= 2){
+        for(unsigned int i {warpSize / 2}; i >= 1; i /= 2){
             float up_sum = __gpu_shfl_down(sum, i);
             float up_sum2 = __gpu_shfl_down(sum2, i);
-            if(laneId < i){
+            if(lane_id < i){
                 sum += up_sum;
                 sum2 += up_sum2;
             }
@@ -123,10 +77,10 @@ __global__ void compute_images_rms(const Complex<float>*data, size_t side_size, 
             #ifdef __NVCC__
             __syncwarp();
             #endif
-            for(int i {NWARPS / 2}; i >= 1; i /= 2){
+            for(unsigned int i {NWARPS / 2}; i >= 1; i /= 2){
                 float up_sum = __gpu_shfl_down(sum, i, NWARPS);
                 float up_sum2 = __gpu_shfl_down(sum2, i, NWARPS);
-                if(laneId < i){
+                if(lane_id < i){
                     sum += up_sum;
                     sum2 += up_sum2;
                 }
@@ -141,16 +95,16 @@ __global__ void compute_images_rms(const Complex<float>*data, size_t side_size, 
         }
         __syncthreads();
         float mean {support[0] / (SELECTION_SIDE * SELECTION_SIDE)};
-        float stdev {sqrt(support[1] / count - mean*mean)};
+        float stdev {sqrt(support[1] / (SELECTION_SIDE * SELECTION_SIDE) - mean*mean)};
         // ==============================================================================
         // STEP 2 Perform the second reduction, this time excluding outliers to compute
         // a significant stdev.
         // ==============================================================================
         sum = 0.0f; sum2 = 0.0f;
-        int count {0};
-        for(int i {threadIdx.x}; i < SELECTION_SIDE * SELECTION_SIDE; i += blockDim.x){
-            int y {start_offset + (i / SELECTION_SIDE)};
-            int x {start_offset + (i % SELECTION_SIDE)};
+        unsigned int count {0};
+        for(unsigned int i {threadIdx.x}; i < SELECTION_SIDE * SELECTION_SIDE; i += blockDim.x){
+            unsigned int y {start_offset + (i / SELECTION_SIDE)};
+            unsigned int x {start_offset + (i % SELECTION_SIDE)};
             float val = centre_pixels[i];
             if((std::abs(val - mean) / stdev) < RMS_THRESHOLD){
                 sum += val;
@@ -159,11 +113,11 @@ __global__ void compute_images_rms(const Complex<float>*data, size_t side_size, 
             }
         }
         // Step 2: compute first pass RMS estimation with warp-wide reduction
-        for(int i {warpSize / 2}; i >= 1; i /= 2){
+        for(unsigned int i {warpSize / 2}; i >= 1; i /= 2){
             float up_sum = __gpu_shfl_down(sum, i);
             float up_sum2 = __gpu_shfl_down(sum2, i);
-            int up_count = __gpu_shfl_down(count, i);
-            if(laneId < i){
+            unsigned int up_count = __gpu_shfl_down(count, i);
+            if(lane_id < i){
                 sum += up_sum;
                 sum2 += up_sum2;
                 count += up_count;
@@ -187,11 +141,11 @@ __global__ void compute_images_rms(const Complex<float>*data, size_t side_size, 
             #ifdef __NVCC__
             __syncwarp();
             #endif
-            for(int i {NWARPS / 2}; i >= 1; i /= 2){
+            for(unsigned int i {NWARPS / 2}; i >= 1; i /= 2){
                 float up_sum = __gpu_shfl_down(sum, i, NWARPS);
                 float up_sum2 = __gpu_shfl_down(sum2, i, NWARPS);
-                int up_count = __gpu_shfl_down(count, i, NWARPS);
-                if(laneId < i){
+                unsigned int up_count = __gpu_shfl_down(count, i, NWARPS);
+                if(lane_id < i){
                     sum += up_sum;
                     sum2 += up_sum2;
                     count += up_count;
@@ -210,28 +164,74 @@ __global__ void compute_images_rms(const Complex<float>*data, size_t side_size, 
     }
 }
 
+
+
+__global__ void clear_flagged_images_kernel(Complex<float>*data, unsigned int side_size, unsigned int n_images, bool *flagged){
+    const unsigned int grid_size {blockDim.x * gridDim.x};
+    const unsigned int image_size {side_size * side_size};
+
+    for(size_t image_id {blockIdx.x}; image_id < n_images; image_id += gridDim.x){
+        if(!flagged[image_id]) continue;
+
+        Complex<float>* image {data + image_id * image_size};
+        for(unsigned int i {threadIdx.x}; i < image_size; i += blockDim.x){
+            image[i].real = 0.0f;
+            // image value is not used, so avoid the assignment operation.
+        }
+    }
+}
+
+
+
 /**
     @brief: computes a vector of boolean values indicating which of the input images are contaminated
     by RFI. The function uses a high RMS as a signal for bad/corrupted channels.
 */
-void flag_rfi_gpu(Images& images, double rms_threshold, int radius){
+void flag_rfi_gpu(Images& images, double rms_threshold){
+    images.to_gpu();
     size_t n_images = images.size();
-    std::vector<float> rms_vector (n_images);
-    #pragma omp parallel for collapse(2) schedule(static)
-    for(size_t i {0u}; i < images.integration_intervals(); i++){
-        for(size_t j {0u}; j < images.n_channels; j++){
-            rms_vector[i * images.n_channels + j] = compute_image_rms(reinterpret_cast<Complex<float>*>(images.at(i, j)), images.side_size, radius, compute_iqr);
-        }
-    }
-    float rms = compute_iqr ? compute_iqr_rms(rms_vector) : compute_running_rms(rms_vector);
+    MemoryBuffer<float> rms_vector_mb {n_images, true};
+    std::vector<float> rms_vector(n_images);
+    struct gpuDeviceProp_t props;
+    int gpu_id = -1;
+    gpuGetDevice(&gpu_id);
+    gpuGetDeviceProperties(&props, gpu_id);
+    unsigned int n_blocks = props.multiProcessorCount * 2;
+    compute_images_rms<<<n_blocks, NTHREADS>>>(reinterpret_cast<Complex<float>*>(images.data()),
+        static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(n_images), rms_vector_mb.data());
+    gpuCheckLastError();
+    gpuMemcpy(rms_vector.data(), rms_vector_mb.data(), sizeof(float) * n_images, gpuMemcpyDeviceToHost);
+    gpuDeviceSynchronize();
+    float rms = compute_running_rms(rms_vector);
     // print some stats
-    std::cout << "flag_rfi - "
-    "min rms: " << *std::min_element(rms_vector.begin(), rms_vector.end()) << ", "
-    "max rms: " << *std::max_element(rms_vector.begin(), rms_vector.end()) << ", rms = " << rms <<  std::endl;
+    // std::cout << "flag_rfi - "
+    // "min rms: " << *std::min_element(rms_vector.begin(), rms_vector.end()) << ", "
+    // "max rms: " << *std::max_element(rms_vector.begin(), rms_vector.end()) << ", rms = " << rms <<  std::endl;
     std::vector<bool> flags (n_images, false);
     // now compute avg rms of all rms
     for(size_t i {0}; i < rms_vector.size(); i++){
         if(rms_vector[i] > rms_threshold * rms) flags[i] = true;
     }
     images.set_flags(flags);
+}
+
+
+
+void clear_flagged_images_gpu(Images& images){
+    images.to_gpu();
+    size_t n_images = images.size();
+    auto flags = images.get_flags();
+    MemoryBuffer<bool> flagged_images {n_images};
+    for(int i {0}; i < n_images; ++i)
+        flagged_images[i] = flags[i];
+    flagged_images.to_gpu();
+    struct gpuDeviceProp_t props;
+    int gpu_id = -1;
+    gpuGetDevice(&gpu_id);
+    gpuGetDeviceProperties(&props, gpu_id);
+    unsigned int n_blocks = props.multiProcessorCount * 2;
+    clear_flagged_images_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<Complex<float>*>(images.data()),
+        static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(n_images), flagged_images.data());
+    gpuCheckLastError();
+    gpuDeviceSynchronize();
 }

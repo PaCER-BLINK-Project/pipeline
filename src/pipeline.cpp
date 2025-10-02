@@ -19,7 +19,7 @@
 #include "peak_finding.hpp"
 #include <gpu_macros.hpp>
 #include "rfi_flagging.hpp"
-
+#include "gpu/rfi_flagging_gpu.hpp"
 
 // TODO: we could use an observation info structure here to pass values
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate,
@@ -114,40 +114,24 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
 
     std::cout << "Running imager.." << std::endl;
     auto images = imager[gpu_id]->run(xcorr);
+   
+    if(rfi_flagging > 0){
+        // images.to_cpu();
+        std::cout << "Applying RFI flagging..." << std::endl;
+        //flag_rfi_cpu(images, rfi_flagging, 50, false);
+        flag_rfi_gpu(images, rfi_flagging);
+        clear_flagged_images_gpu(images);
+    }
+    if(pDynamicSp) {
+        std::cout << "Adding images to dynamic spectrum.." << std::endl;
+        images.to_cpu();
+        // TODO add GPU implementation
+        pDynamicSp->add_images(images);
+    }
 
     if(!dedisp_engine.is_initialised()){
-        // no dedispersion, save images
-        high_resolution_clock::time_point save_image_start = high_resolution_clock::now();
-        images.to_cpu();
-        if(rfi_flagging > 0){
-            std::cout << "Applying RFI flagging..." << std::endl;
-            flag_rfi(images, rfi_flagging, 40, false);
-        }
-        if(pDynamicSp) {
-            std::cout << "Adding images to dynamic spectrum.." << std::endl;
-            pDynamicSp->add_images(images);
-        }
-        // if(rfi_flagging > 0){
-        //     // only saves flagged images, for testing
-        //     const auto flags = images.get_flags();
-        //     size_t flagged {0};
-        //     for(size_t i {0}; i < flags.size(); i++){
-        //         if(flags[i]){
-        //             size_t interval {i / images.nFrequencies};
-        //             size_t fine_channel {i % images.nFrequencies};
-        //             images.to_fits_file(interval, fine_channel, output_dir);
-        //             flagged++;
-        //         }
-        //     }
-        //     std::cout << "Saved " << flagged << " images flagged as RFI.." << std::endl;
-        // }
-        else{
-            std::cout << "Saving images to disk..." << std::endl;
-            images.to_fits_files(output_dir);
-        }
-        high_resolution_clock::time_point save_image_end = high_resolution_clock::now();
-        duration<double> save_image_dur = duration_cast<duration<double>>(save_image_end - save_image_start);
-        std::cout << "Copying images to CPU took " << save_image_dur.count() << " seconds." << std::endl;
+        std::cout << "Saving images to disk..." << std::endl;
+        images.to_fits_files(output_dir);
     }else{
         int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.n_channels - 1;
         high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();

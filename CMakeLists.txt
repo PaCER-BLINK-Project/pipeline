@@ -54,7 +54,11 @@ endif()
 # Pipeline library
 file(GLOB pipeline_sources "src/*.cpp")
 file(GLOB pipeline_headers "src/*.hpp")
-
+if(USE_CUDA OR USE_HIP)
+   file(GLOB gpu_sources "src/gpu/*.cpp")
+   file(GLOB gpu_headers "src/gpu/*.hpp")
+   list(APPEND pipeline_sources ${gpu_sources})
+endif()
 
 if(USE_CUDA)
 set_source_files_properties(${pipeline_sources} "apps/blink_pipeline.cpp" PROPERTIES LANGUAGE CUDA)
@@ -69,7 +73,7 @@ install(TARGETS pipeline
    LIBRARY DESTINATION "lib"
    PUBLIC_HEADER DESTINATION "include"
 )
-
+install(FILES ${gpu_headers} DESTINATION "${CMAKE_INSTALL_PREFIX}/include/gpu")
 
 # APPS
 add_executable(blink_pipeline apps/blink_pipeline.cpp)
