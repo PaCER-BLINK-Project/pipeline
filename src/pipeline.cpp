@@ -127,9 +127,7 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         images.to_cpu();
         // TODO add GPU implementation
         pDynamicSp->add_images(images);
-    }
-
-    if(!dedisp_engine.is_initialised()){
+    }else if(!dedisp_engine.is_initialised()){
         std::cout << "Saving images to disk..." << std::endl;
         images.to_fits_files(output_dir);
     }else{
