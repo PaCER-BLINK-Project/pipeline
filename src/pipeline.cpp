@@ -21,6 +21,9 @@
 #include "rfi_flagging.hpp"
 #include "gpu/rfi_flagging_gpu.hpp"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 // TODO: we could use an observation info structure here to pass values
 blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate,
     std::string solutions_file, int imageSize, std::string metadataFile, float oversampling_factor,
@@ -59,17 +62,15 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
 
     if(calibrate) cal_sol[0] = CalibrationSolutions::from_file(this->calibration_solutions_file);
     if(reorder) mapping[0] = get_visibilities_mapping(this->MetaDataFile);
-
+    for(int i {1}; i < num_gpus; i++){
+        if(calibrate) cal_sol[i] = cal_sol[0];
+        if(reorder) mapping[i] = mapping[0];
+    }
     for(int i {0}; i < num_gpus; i++){
         gpuSetDevice(i);
         imager[i] = new CPacerImagerHip {metadataFile, imageSize, flagged_antennas, averageImages,
             pol_to_image, oversampling_factor, MinUV, szWeighting.c_str()};
         if(change_phase_centre) imager[i]->m_MetaData.set_phase_centre(ra_deg, dec_deg);
-        
-        if(i > 0) {
-            if(calibrate) cal_sol[i] = cal_sol[0];
-            if(reorder) mapping[i] = mapping[0];
-        }
         mapping[i].to_gpu();
         cal_sol[i].to_gpu();
     }
@@ -83,7 +84,11 @@ void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
    #pragma omp parallel for num_threads(num_gpus)
    for(int i = 0; i < inputs.size(); i++){
         const auto& input = inputs[i];
-        run(*input, i % num_gpus);
+        #ifdef _OPENMP
+        run(*input, omp_get_thread_num());
+        #else
+        run(*input, 0);
+        #endif
    }
    if(dedisp_engine.is_initialised()) dedisp_engine.increase_offset();
    if(pDynamicSp) pDynamicSp->increase_offset();
