@@ -9,9 +9,10 @@ class DynamicSpectrum : MemoryBuffer<float> {
     private:
     size_t n_timesteps {0}, n_frequencies {0}, current_offset {0}, batch_size {0};
     // image pixel coordinates this dynamic spectrum refers to
-    int x {0}, y {0};
     
     public:
+    int x {0}, y {0};
+    
     DynamicSpectrum(size_t n_timesteps, size_t n_frequencies, size_t batch_size,  int x, int y) : \
             MemoryBuffer {n_timesteps * n_frequencies}, n_timesteps {n_timesteps}, \
             n_frequencies {n_frequencies}, x {x}, y {y}, batch_size {batch_size} {

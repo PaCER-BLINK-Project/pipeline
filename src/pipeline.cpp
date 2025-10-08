@@ -91,7 +91,11 @@ void blink::Pipeline::run(const std::vector<std::shared_ptr<Voltages>>& inputs){
         #endif
    }
    if(dedisp_engine.is_initialised()) dedisp_engine.increase_offset();
-   if(pDynamicSp) pDynamicSp->increase_offset();
+   if(DynamicSpectra.size() > 0 ){
+      for( auto ds : DynamicSpectra ){
+         ds->increase_offset();
+      }
+   }
 }
 
 void blink::Pipeline::run(const Voltages& input, int gpu_id){
@@ -127,11 +131,14 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         flag_rfi_gpu(images, rfi_flagging);
         clear_flagged_images_gpu(images);
     }
-    if(pDynamicSp) {
+    if(DynamicSpectra.size() > 0 ) {
         std::cout << "Adding images to dynamic spectrum.." << std::endl;
         images.to_cpu();
         // TODO add GPU implementation
-        pDynamicSp->add_images(images);
+        for( auto ds : DynamicSpectra ){
+           ds->add_images(images);
+        }
+        
     }else if(!dedisp_engine.is_initialised()){
         std::cout << "Saving images to disk..." << std::endl;
         images.to_fits_files(output_dir);
@@ -145,3 +152,19 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
     }
 }
 
+void blink::Pipeline::add_dynamic_spectrum(std::shared_ptr<DynamicSpectrum> p)
+{
+   DynamicSpectra.push_back(p);
+}
+
+void blink::Pipeline::save_dynamic_spectra() 
+{
+   for( auto ds : DynamicSpectra ){
+      char filename[2048];
+      sprintf(filename,"%s/dynamic_spectrum_%05d_%05d.fits",output_dir.c_str(),ds->x,ds->y);
+      
+      ds->to_fits_file(filename);
+      
+      cout << "Saved dynamic spectrum " << filename << endl;      
+   }
+}

@@ -8,6 +8,7 @@
 #include <memory>
 #include <chrono>
 #include <regex>
+#include <array>
 
 #include "../src/pipeline.hpp"
 
@@ -72,7 +73,7 @@ struct ProgramOptions {
     string dm_list_string;
     vector<float> dm_list;
     float rfi_flagging;
-    int ds_pixel[2];
+    vector<array<int,2>> ds_pixels;
     int n_antennas;
 
 };
@@ -123,11 +124,14 @@ int main(int argc, char **argv){
     auto frequencies_list = get_frequencies(observation[0], opts.nChannelsToAvg);
     std::cout << "Will process " << observation.size() << " seconds of observation." << std::endl;
 
-    bool dynamic_spectrum_mode_enabled = opts.ds_pixel[0] >= 0 && opts.ds_pixel[1] >= 0;
+    bool dynamic_spectrum_mode_enabled = (opts.ds_pixels.size()>0);
     if(dynamic_spectrum_mode_enabled){
-        auto pDynamicSpectrum = std::make_shared<DynamicSpectrum>(observation.size() * n_timesteps,
-            frequencies_list.size() - 1, n_timesteps, opts.ds_pixel[0], opts.ds_pixel[1]);
-        pipeline.set_dynamic_spectrum(pDynamicSpectrum);
+        for( auto ds_pixel : opts.ds_pixels ){
+           auto pDynamicSpectrum = std::make_shared<DynamicSpectrum>(observation.size() * n_timesteps,
+               frequencies_list.size() - 1, n_timesteps, ds_pixel[0], ds_pixel[1]);
+           pipeline.add_dynamic_spectrum(pDynamicSpectrum);
+           std::cout << "Added dynamic spectrum for pixel " << ds_pixel[0] << "," << ds_pixel[1] << endl;
+        }
         std::cout << "Enabled dynamic spectrum mode.." << std::endl;
     }
 
@@ -167,7 +171,7 @@ int main(int argc, char **argv){
     if(pipeline.dedisp_engine.is_initialised()){
         pipeline.dedisp_engine.process_buffer();
     }
-    if(dynamic_spectrum_mode_enabled) pipeline.save_dynamic_spectrum();
+    if(dynamic_spectrum_mode_enabled) pipeline.save_dynamic_spectra();
 }
 
 std::vector<float> get_frequencies(const std::vector<DatFile>& one_second, int chnls_to_avg){
@@ -257,8 +261,6 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.seconds_count = -1;
     opts.seconds_offset = 0;
     opts.rfi_flagging = -1.0f;
-    opts.ds_pixel[0] = -1;
-    opts.ds_pixel[1] = -1;
     opts.n_antennas = -1;
     
     // default debug levels :
@@ -282,10 +284,15 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
                 break;
             }
             case 'd': {
-                auto items = ::tokenize_string(optarg, ',');
-                if(items.size() != 2) throw std::invalid_argument {"Invalid pixel specification for the -d option."};
-                opts.ds_pixel[0] = atoi(items[0].c_str());
-                opts.ds_pixel[1] = atoi(items[1].c_str());
+                auto items = ::tokenize_string(optarg, ':');
+                for( auto px : items ){
+                   auto px_coords = ::tokenize_string(px, ','); 
+                   if(px_coords.size() != 2) throw std::invalid_argument {"Invalid pixel specification for the -d option."};
+                   
+                   int x = atoi(px_coords[0].c_str());
+                   int y = atoi(px_coords[1].c_str());
+                   opts.ds_pixels.push_back(array<int,2>{x,y});
+                }
                 break;
             }
             case 'r': {
