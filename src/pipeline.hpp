@@ -72,9 +72,8 @@ namespace blink {
         
         void run(const Voltages& input, int gpu_id);
         void run(const std::vector<std::shared_ptr<Voltages>>& inputs);
-//        void set_dynamic_spectrum(std::shared_ptr<DynamicSpectrum> p) {pDynamicSp = p;};
         void add_dynamic_spectrum(std::shared_ptr<DynamicSpectrum> p);
-        void save_dynamic_spectrum(); // {pDynamicSp->to_fits_file(output_dir + "/dynamic_spectrum.fits");};
+        void save_dynamic_spectra();
 
         ~Pipeline() {
             for(CPacerImagerHip* p : imager) delete p;
