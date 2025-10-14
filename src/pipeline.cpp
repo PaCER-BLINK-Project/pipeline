@@ -132,13 +132,15 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         clear_flagged_images_gpu(images);
     }
 
-    if(DynamicSpectra.size() > 0 ) {
-        std::cout << "Adding images to dynamic spectrum.." << std::endl;
-        images.to_cpu();
-        // TODO add GPU implementation
+    if(DynamicSpectra.size() > 0) {
+        std::cout << "Adding images to dynamic spectra.." << std::endl;
+        high_resolution_clock::time_point ds_start = high_resolution_clock::now();
         for( auto ds : DynamicSpectra ){
            ds->add_images(images);
         }
+        high_resolution_clock::time_point ds_end = high_resolution_clock::now();
+        duration<double> ds_dur = duration_cast<duration<double>>(ds_end - ds_start);
+        std::cout << "Adding to dynamic spectrum took " << ds_dur.count() << " seconds." << std::endl;
     }
     //if(rfi_marcin){
         // determine flags for images in the same time step
