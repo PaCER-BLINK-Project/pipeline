@@ -131,6 +131,7 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         flag_rfi_gpu(images, rfi_flagging);
         clear_flagged_images_gpu(images);
     }
+
     if(DynamicSpectra.size() > 0 ) {
         std::cout << "Adding images to dynamic spectrum.." << std::endl;
         images.to_cpu();
@@ -138,11 +139,21 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         for( auto ds : DynamicSpectra ){
            ds->add_images(images);
         }
-        
-    }else if(!dedisp_engine.is_initialised()){
+    }
+    //if(rfi_marcin){
+        // determine flags for images in the same time step
+        // process(DynamicSpectra[0], images);
+
+        // clear_flagged_images_gpu(images);
+    //}
+
+    if(DynamicSpectra.size() == 0 && !dedisp_engine.is_initialised()){
         std::cout << "Saving images to disk..." << std::endl;
         images.to_fits_files(output_dir);
-    }else{
+    }
+
+    if(dedisp_engine.is_initialised()){
+        images.to_gpu();
         int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.n_channels - 1;
         high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();
         dedisp_engine.compute_partial_dedispersion_gpu(images, top_freq_idx);
