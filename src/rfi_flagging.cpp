@@ -4,10 +4,12 @@
 #include <mycomplex.hpp>
 #include <images.hpp>
 #include "rfi_flagging.hpp"
+#ifdef __GPU__
+#include "gpu/rfi_flagging_gpu.hpp"
+#endif
 
 
-
-float compute_image_rms(const Complex<float>* data, int side_size, int radius, bool compute_iqr){
+std::pair<float, float> compute_image_rms_cpu(const Complex<float>* data, int side_size, int radius, bool compute_iqr){
     int center = side_size / 2;
     int start = center - radius;
     int end = center + radius;
@@ -24,30 +26,47 @@ float compute_image_rms(const Complex<float>* data, int side_size, int radius, b
     else return compute_running_rms(values);
 }
 
+
+std::vector<float> compute_images_rms_cpu(Images& images){
+    size_t n_images = images.size();
+    std::vector<float> rms_vector(n_images);
+
+    #pragma omp parallel for collapse(2) schedule(static)
+    for(size_t i {0u}; i < images.integration_intervals(); i++){
+        for(size_t j {0u}; j < images.n_channels; j++){
+            auto median_rms = compute_image_rms_cpu(reinterpret_cast<Complex<float>*>(images.at(i, j)), images.side_size, 50, false);
+            rms_vector[i * images.n_channels + j] = median_rms.second;
+        }
+    }
+    return rms_vector;
+}
+
 /**
     @brief: computes a vector of boolean values indicating which of the input images are contaminated
     by RFI. The function uses a high RMS as a signal for bad/corrupted channels.
 */
-void flag_rfi_cpu(Images& images, double rms_threshold, int radius, bool compute_iqr){
-    size_t n_images = images.size();
-    std::vector<float> rms_vector (n_images);
-    #pragma omp parallel for collapse(2) schedule(static)
-    for(size_t i {0u}; i < images.integration_intervals(); i++){
-        for(size_t j {0u}; j < images.n_channels; j++){
-            rms_vector[i * images.n_channels + j] = compute_image_rms(reinterpret_cast<Complex<float>*>(images.at(i, j)), images.side_size, radius, compute_iqr);
-        }
+void flag_rfi(Images& images, double rms_threshold, bool use_iqr){
+    std::vector<float> rms_vector;
+    #ifdef __GPU__
+    if(gpu_support() && num_available_gpus() > 0 && images.on_gpu()){
+        rms_vector = compute_images_rms_gpu(images);
+    }else{
+        rms_vector = compute_images_rms_cpu(images);
     }
-    float rms = compute_iqr ? compute_iqr_rms(rms_vector) : compute_running_rms(rms_vector);
+    #else
+    rms_vector = compute_images_rms_cpu(images);
+    #endif
+    
+    std::pair<float, float> median_rms_of_rms = use_iqr ? compute_iqr_rms(rms_vector) : compute_running_rms(rms_vector);
 
     // print some stats
     std::cout << "flag_rfi - "
     "min rms: " << *std::min_element(rms_vector.begin(), rms_vector.end()) << ", "
-    "max rms: " << *std::max_element(rms_vector.begin(), rms_vector.end()) << ", rms = " << rms <<  std::endl;
-    std::vector<bool> flags (n_images, false);
+    "max rms: " << *std::max_element(rms_vector.begin(), rms_vector.end()) << ", rms = " << median_rms_of_rms.second <<  std::endl;
+    std::vector<bool> flags (images.size(), false);
     // now compute avg rms of all rms
     for(size_t i {0}; i < rms_vector.size(); i++){
-        std::cout << "RMS VALUE: " << rms_vector[i] << std::endl;
-        if(rms_vector[i] > rms_threshold * rms) flags[i] = true;
+        if(rms_vector[i] > median_rms_of_rms.first + rms_threshold * median_rms_of_rms.second) flags[i] = true;
     }
     images.set_flags(flags);
 }

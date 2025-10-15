@@ -128,7 +128,7 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         // images.to_cpu();
         std::cout << "Applying RFI flagging..." << std::endl;
         //flag_rfi_cpu(images, rfi_flagging, 50, false);
-        flag_rfi_gpu(images, rfi_flagging);
+        flag_rfi(images, rfi_flagging, true);
         clear_flagged_images_gpu(images);
     }
 
