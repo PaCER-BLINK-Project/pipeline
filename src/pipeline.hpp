@@ -11,7 +11,7 @@
 #include <gpu/pacer_imager_hip.h>
 #include <dedispersion.hpp>
 #include "dynamic_spectrum.hpp"
-
+#include "totalpower.h"
 
 using namespace blink::dedispersion;
 
@@ -61,6 +61,7 @@ namespace blink {
         
         public:        
         Dedispersion dedisp_engine;
+        TotalPower total_power; // for RFI flagging using total power (or its RMS) in dynamic spectrum
 
         Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
                   int imageSize, std::string metadataFile, float oversampling_factor, std::string szAntennaPositionsFile,

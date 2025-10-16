@@ -30,7 +30,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     std::string szAntennaPositionsFile, double minUV, bool printImageStats, std::string szWeighting, 
     std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, Polarization pol_to_image,
     vector<int>& flagged_antennas, bool change_phase_centre, double ra_deg, double dec_deg, Dedispersion& dedisp_engine,
-    float rfi_flagging, std::string& output_dir, std::string& postfix) : dedisp_engine {dedisp_engine} {
+    float rfi_flagging, std::string& output_dir, std::string& postfix) : dedisp_engine {dedisp_engine}, total_power(integrationTime*1000.00) {
 
     gpuGetDeviceCount(&num_gpus);
     if(num_gpus == 0){
@@ -138,11 +138,26 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         for( auto ds : DynamicSpectra ){
            ds->add_images(images);
         }
-        
-    }else if(!dedisp_engine.is_initialised()){
+    }
+
+    if(false){
+       // TODO - set offset and ntimes and start_time to make sure the new portion of data is processed
+       int offset=0; // use DynamicSpectra.current_offset use this one 
+       int ntimes=1; // use DynamicSpectra.batch_size ??? - Cristian : how many timesteps are processed each time (20ms) - 50 in our case !!!
+       int start_time=0;
+       total_power.calc( *(DynamicSpectra[0]), true, true, offset, ntimes, start_time );
+       // determine flags for images in the same time step
+       // process(DynamicSpectra[0], images);
+
+       // clear_flagged_images_gpu(images);
+    }
+
+    if(DynamicSpectra.size() == 0 && !dedisp_engine.is_initialised()){
         std::cout << "Saving images to disk..." << std::endl;
         images.to_fits_files(output_dir);
-    }else{
+    }        
+
+    if(dedisp_engine.is_initialised()){
         int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.n_channels - 1;
         high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();
         dedisp_engine.compute_partial_dedispersion_gpu(images, top_freq_idx);

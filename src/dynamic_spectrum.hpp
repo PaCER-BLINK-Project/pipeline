@@ -4,7 +4,7 @@
 #include <images.hpp>
 #include <memory_buffer.hpp>
 
-class DynamicSpectrum : MemoryBuffer<float> {
+class DynamicSpectrum : public MemoryBuffer<float> {
 
     private:
     size_t n_timesteps {0}, n_frequencies {0}, current_offset {0}, batch_size {0};
@@ -24,6 +24,9 @@ class DynamicSpectrum : MemoryBuffer<float> {
     void increase_offset() {current_offset += batch_size;};
 
     void to_fits_file(std::string filename);
+    
+    inline int get_ntimesteps(){ return n_timesteps; }
+    inline int get_nchan(){ return n_frequencies; }
 };
 
 #endif
