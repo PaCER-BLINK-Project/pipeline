@@ -129,8 +129,12 @@ int main(int argc, char **argv){
         for( auto ds_pixel : opts.ds_pixels ){
            auto pDynamicSpectrum = std::make_shared<DynamicSpectrum>(observation.size() * n_timesteps,
                frequencies_list.size() - 1, n_timesteps, ds_pixel[0], ds_pixel[1]);
-           pipeline.add_dynamic_spectrum(pDynamicSpectrum);
-           std::cout << "Added dynamic spectrum for pixel " << ds_pixel[0] << "," << ds_pixel[1] << endl;
+           if( pipeline.has_dynamic_spectrum( ds_pixel[0], ds_pixel[1] ) ){
+              std::cout << "Duplicate pixel " << ds_pixel[0] << "," << ds_pixel[1] << " skipped" << endl;
+           }else{                   
+              pipeline.add_dynamic_spectrum(pDynamicSpectrum);           
+              std::cout << "Added dynamic spectrum for pixel " << ds_pixel[0] << "," << ds_pixel[1] << endl;
+           }
         }
         std::cout << "Enabled dynamic spectrum mode.." << std::endl;
     }
