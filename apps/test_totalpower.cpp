@@ -7,10 +7,8 @@
 
 #include <bg_globals.h>
 #include <bg_fits.h>
-#include "totalpower.h"
-
-// #include "../../../astroio/src/memory_buffer.hpp"
-#include "dynamic_spectrum.hpp"
+#include "../src/totalpower.h"
+#include "../src/dynamic_spectrum.hpp"
 
 #include <vector>
 using namespace std;
@@ -28,15 +26,10 @@ void parse_cmdline(int argc, char * argv[]) {
    int opt;
         
    while ((opt = getopt(argc, argv, optstring)) != -1) {
-//      printf("opt = %c (%s)\n",opt,optarg);   
       switch (opt) {
          case 'h':
             usage();
             break;
-
-//         case 'l':
-//            gLST = atof( optarg );
-//            break;
 
 
          default:   
