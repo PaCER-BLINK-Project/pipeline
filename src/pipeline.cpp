@@ -179,3 +179,11 @@ void blink::Pipeline::save_dynamic_spectra()
       cout << "Saved dynamic spectrum " << filename << endl;      
    }
 }
+
+bool blink::Pipeline::has_dynamic_spectrum(int x, int y)
+{
+   int count = count_if(begin(DynamicSpectra),end(DynamicSpectra),[x,y]( std::shared_ptr<DynamicSpectrum> dynaspec ){ if(x==dynaspec->x && y==dynaspec->y ){ return true; }else{return false;} } );
+   
+   return ( count > 0 );
+}
+
