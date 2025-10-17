@@ -80,6 +80,12 @@ add_executable(blink_pipeline apps/blink_pipeline.cpp)
 target_link_libraries(blink_pipeline pipeline stdc++fs)
 install(TARGETS blink_pipeline DESTINATION "bin")
 
+add_executable(test_totalpower apps/test_totalpower.cpp)
+target_link_libraries(test_totalpower pipeline stdc++fs)
+install(TARGETS test_totalpower DESTINATION "bin")
+
+
+
 if(USE_OPENMP)
     find_package(OpenMP REQUIRED)
     target_link_libraries(pipeline OpenMP::OpenMP_CXX)
