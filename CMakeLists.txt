@@ -84,6 +84,8 @@ add_executable(test_totalpower apps/test_totalpower.cpp)
 target_link_libraries(test_totalpower pipeline stdc++fs)
 install(TARGETS test_totalpower DESTINATION "bin")
 
+add_executable(exclude_ranges_totalpower apps/exclude_ranges_totalpower.cpp)
+install(TARGETS exclude_ranges_totalpower DESTINATION "bin")
 
 
 if(USE_OPENMP)

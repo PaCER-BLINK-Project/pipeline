@@ -30,5 +30,9 @@ ls dyna*.fits > fits_list
 
 print_run srun $exec fits_list 
 
-cp ~/github/blink_scripts/filtering/plot_total_power_onefile.C .
-
+for total_power_file in `ls *.total_power`
+do
+   exclude_ranges_file=${total_power_file%%total_power}exclude_ranges
+   print_run srun ${exec_dir}/exclude_ranges_totalpower $total_power_file -o $exclude_ranges_file
+done
+   
