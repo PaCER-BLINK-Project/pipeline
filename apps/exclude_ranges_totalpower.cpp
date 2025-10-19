@@ -15,6 +15,7 @@ using namespace std;
 string infile="total_power.txt";
 string outfile="exclude_ranges.txt";
 double gThreshold=5.00;
+bool   gDebug=false;
 
 struct cTotalPower
 {
@@ -70,8 +71,10 @@ int read_file( const char* filename, vector<cTotalPower>& total_power_vec )
       double down = median_of_medians - gThreshold*median_of_rmsiqr;
       total_power_vec.push_back( cTotalPower{ timeindex, total_power, median_of_medians, median_of_rmsiqr, median, up, down } );
 
-      printf("LINE : |%s|\n",line.c_str());
-      printf("     : |%ld %.4f %.4f %.4f %.4f|\n",(total_power_vec.end()-1)->timeindex,(total_power_vec.end()-1)->total_power,(total_power_vec.end()-1)->median_of_median,(total_power_vec.end()-1)->median_of_rmsiqr,(total_power_vec.end()-1)->median);
+      if( gDebug ){
+         printf("LINE : |%s|\n",line.c_str());
+         printf("     : |%ld %.4f %.4f %.4f %.4f|\n",(total_power_vec.end()-1)->timeindex,(total_power_vec.end()-1)->total_power,(total_power_vec.end()-1)->median_of_median,(total_power_vec.end()-1)->median_of_rmsiqr,(total_power_vec.end()-1)->median);
+      }
 //      printf("     : |%ld %.5f %.5f %.5f %.5f|\n",tmp.timeindex,tmp.total_power,tmp.median_of_median,tmp.median_of_rmsiqr,tmp.median);
 //      printf("     : |%s %s %s %s %s|\n",items[0].c_str(),items[1].c_str(),items[2].c_str(),items[3].c_str(),items[4].c_str());
    }
