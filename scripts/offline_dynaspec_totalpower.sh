@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #!/bin/bash -e 
-#SBATCH --account=mwavcc
+#SBATCH --account=mwavcs
 #SBATCH --partition=mwa
 #SBATCH --time=23:59:59
 #SBATCH --export=NONE
