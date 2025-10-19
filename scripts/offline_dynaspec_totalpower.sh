@@ -18,7 +18,7 @@ function print_run {
 module load blink-pipeline-gpu/main
 
 
-export LD_LIBRARY_PATH=exec_dir=/software/projects/pawsey1154/msok/github/branches/msok-totalpower/pipeline/build/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/software/projects/pawsey1154/msok/github/branches/msok-totalpower/pipeline/build/:$LD_LIBRARY_PATH
 exec_dir=/software/projects/pawsey1154/msok/github/branches/msok-totalpower/pipeline/build/
 if [[ -n "$1" && "$1" != "-" ]]; then
    exec_dir="$1"
