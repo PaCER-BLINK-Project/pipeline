@@ -5,6 +5,7 @@
 #include <string>
 #include <math.h>
 #include <unistd.h>
+#include <iomanip>
 
 #include <vector>
 #include <iostream>
@@ -16,6 +17,8 @@ string infile="total_power.txt";
 string outfile="exclude_ranges.txt";
 double gThreshold=5.00;
 bool   gDebug=false;
+int    gRunningMedianSize=50;
+int    gBorder=10;
 
 struct cTotalPower
 {
@@ -35,9 +38,9 @@ int read_file( const char* filename, vector<cTotalPower>& total_power_vec )
    
    ifstream ifile{filename};
    if(ifile)
-      cout << "Open OK !!!";
+      std::cout << "Open OK !!!" << std::endl;
    else 
-      cerr << "ERROR : could not open file " << filename;
+      std::cerr << "ERROR : could not open file " << filename << std::endl;
 
    string line;      
    while(getline(ifile,line)){ // returns false when file ends, removes \n from the text (no newline)
@@ -72,11 +75,10 @@ int read_file( const char* filename, vector<cTotalPower>& total_power_vec )
       total_power_vec.push_back( cTotalPower{ timeindex, total_power, median_of_medians, median_of_rmsiqr, median, up, down } );
 
       if( gDebug ){
-         printf("LINE : |%s|\n",line.c_str());
-         printf("     : |%ld %.4f %.4f %.4f %.4f|\n",(total_power_vec.end()-1)->timeindex,(total_power_vec.end()-1)->total_power,(total_power_vec.end()-1)->median_of_median,(total_power_vec.end()-1)->median_of_rmsiqr,(total_power_vec.end()-1)->median);
+         std::cout << "LINE : |" << line << "|" << std::endl;
+         std::cout << std::setprecision(4);
+         std::cout << "       |" << (total_power_vec.end()-1)->timeindex << " " << (total_power_vec.end()-1)->total_power << " " << (total_power_vec.end()-1)->median_of_median << " " << (total_power_vec.end()-1)->median_of_rmsiqr << " " << (total_power_vec.end()-1)->median << std::endl;
       }
-//      printf("     : |%ld %.5f %.5f %.5f %.5f|\n",tmp.timeindex,tmp.total_power,tmp.median_of_median,tmp.median_of_rmsiqr,tmp.median);
-//      printf("     : |%s %s %s %s %s|\n",items[0].c_str(),items[1].c_str(),items[2].c_str(),items[3].c_str(),items[4].c_str());
    }
    
    ifile.close();
@@ -84,21 +86,20 @@ int read_file( const char* filename, vector<cTotalPower>& total_power_vec )
    return total_power_vec.size();
 }
 
-void find_exclude_ranges( vector<cTotalPower>& total_power_vec, const char* outfile ) 
+void find_exclude_ranges( vector<cTotalPower>& total_power_vec, const char* outfile, int running_median_size, int border ) 
 {
    int n_points = total_power_vec.size();
-   FILE* outf = fopen( outfile ,"w");
-   printf("DEBUG : n_points = %d\n",n_points);
-   printf("Exclusion ranges:\n");
+   ofstream ofile(outfile);
+   std::cout << "DEBUG : n_points = " << n_points << std::endl;
+   std::cout << "Exclusion ranges:" << std::endl;
    // generate exclusion ranges :
-   int border = 10;
    int start_range = -1;
    int last_range_start = -1, last_range_end = -1;
    int count_exclude_range=0;
-   for(int i=50;i<n_points;i++){  // skips first 50 (number of points in the running median) - so before running median / iqr stabilise 
+   for(int i=running_median_size;i<n_points;i++){  // skips first 50 (number of points in the running median) - so before running median / iqr stabilise 
       if( total_power_vec[i].total_power > total_power_vec[i].up ){
          if( start_range < 0 ){
-            if( last_range_end>=0 && (i-last_range_end)<10 ){
+            if( last_range_end>=0 && (i-last_range_end)<border ){
                // if small break between ranges - extend the current range :
                start_range = last_range_start;
             }else{
@@ -106,8 +107,8 @@ void find_exclude_ranges( vector<cTotalPower>& total_power_vec, const char* outf
                   // save current range :
                   last_range_start -= border; // a bit agressive border
                   last_range_end -= border;
-                  printf("\tExclusion range = %d - %d\n",last_range_start,last_range_end);
-                  fprintf(outf,"%d-%d\n",last_range_start,last_range_end);
+                  std::cout << "\tExclusion range = " << last_range_start << " - " << last_range_end << std::endl;
+                  ofile << last_range_start << "-" << last_range_end << std::endl;
                   last_range_start = -1;
                   last_range_end = -1;
                   count_exclude_range++;
@@ -116,41 +117,38 @@ void find_exclude_ranges( vector<cTotalPower>& total_power_vec, const char* outf
             }
          }
       }else{
-         if( start_range >= 0 && (i-start_range)>10 ){
+         if( start_range >= 0 && (i-start_range)>border ){
             int t_start = total_power_vec[start_range].timeindex - border;
             int t_end = total_power_vec[i-1].timeindex + border;
-//            printf("\tExclusion range = %d - %d\n",t_start,t_end);
-//            fprintf(outf,"%d-%d\n",t_start,t_end);
             last_range_start = t_start;
             last_range_end = t_end;
             start_range = -1;
          }
       }
 
-      if( last_range_start>=0 && last_range_end>=0 && (i-last_range_end)>=10 ){
+      if( last_range_start>=0 && last_range_end>=0 && (i-last_range_end)>=border ){
           // save current range :
           last_range_start -= border;
           last_range_end -= border;
-          printf("\tExclusion range = %d - %d\n",last_range_start,last_range_end);
-          fprintf(outf,"%d-%d\n",last_range_start,last_range_end);
+          std::cout << "\tExclusion range = " << last_range_start << " - " << last_range_end << std::endl;
+          ofile << last_range_start << "-" << last_range_end << std::endl;
           last_range_start = -1;
           last_range_end = -1;
           count_exclude_range++;
       }
 
-//      printf("%d : %.8f vs. %.8f\n",i,total_power[i],up[i]);
    }
-   fclose(outf);
+   ofile.close();
 
-   printf("Number of exclusion ranges = %d\n",count_exclude_range);
+   std::cout << "Number of exclusion ranges = " << count_exclude_range << std::endl;
 
 }
 
 void usage()
 {
-   printf("exclude_ranges_totalpower TOTAL_POWER.txt\n\n\n");
-   printf("TOTAL_POWER.txt file should be the output from test_totalpower program with 5 columns : # TIMEINDEX TOTAL_POWER MedianOfMedians MedianOfRMSIQR MEDIAN\n");
-   printf("-o OUTPUT_FILE_NAME [default %s]\n",outfile.c_str());
+   std::cout << "exclude_ranges_totalpower TOTAL_POWER.txt" << std::endl << std::endl << std::endl;   
+   std::cout << "TOTAL_POWER.txt file should be the output from test_totalpower program with 5 columns : # TIMEINDEX TOTAL_POWER MedianOfMedians MedianOfRMSIQR MEDIAN" << std::endl;
+   std::cout << "-o OUTPUT_FILE_NAME [default " << outfile << "]" << std::endl;
    exit(0);
 }
 
@@ -172,7 +170,7 @@ void parse_cmdline(int argc, char * argv[]) {
 
 
          default:   
-            fprintf(stderr,"Unknown option %c\n",opt);
+            std::cerr << "Unknown option " << opt << std::endl;
             usage();
       }
    }
@@ -180,12 +178,12 @@ void parse_cmdline(int argc, char * argv[]) {
 
 void print_parameters()
 {
-    printf("############################################################################################\n");
-    printf("PARAMETERS :\n");
-    printf("############################################################################################\n");
-    printf("Input file    = %s\n",infile.c_str());
-    printf("Output file   = %s\n",outfile.c_str());
-    printf("############################################################################################\n");
+    std::cout << "############################################################################################" << std::endl;
+    std::cout << "PARAMETERS :" << std::endl;
+    std::cout << "############################################################################################" << std::endl;
+    std::cout << "Input file    = %s" << infile << std::endl;
+    std::cout << "Output file   = %s" << outfile  << std::endl;
+    std::cout << "############################################################################################" << std::endl;
 }
 
 int main(int argc,char* argv[])
@@ -199,6 +197,6 @@ int main(int argc,char* argv[])
   vector<cTotalPower> total_power_vec;  
   read_file( infile.c_str() , total_power_vec );
   
-  find_exclude_ranges( total_power_vec, outfile.c_str() );
+  find_exclude_ranges( total_power_vec, outfile.c_str(), gRunningMedianSize, gBorder );
 }
 
