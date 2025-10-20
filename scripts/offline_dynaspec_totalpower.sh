@@ -34,5 +34,6 @@ for total_power_file in `ls *.total_power`
 do
    exclude_ranges_file=${total_power_file%%total_power}exclude_ranges
    print_run srun ${exec_dir}/exclude_ranges_totalpower $total_power_file -o $exclude_ranges_file
+   awk '{printf("%s,",$1)}' ${exclude_ranges_file} > ${exclude_ranges_file}_option
 done
    
