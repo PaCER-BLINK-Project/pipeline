@@ -39,7 +39,7 @@ std::pair<T, T> compute_running_rms(const std::vector<T>& values, int threshold 
     size_t count {0};
     T sum {0}, sum2 {0}, mean {0}, rms {0};
     for(const T& val : values){
-        if(!std::isnan(val) && !std::isinf(val) && (std::abs(val - mean_all) / stdev) < threshold ){
+        if(!std::isnan(val) && !std::isinf(val) && (threshold < 0 || (std::abs(val - mean_all) / stdev) < threshold)){
             sum += val;
             sum2 += val*val;
             count += 1;   
