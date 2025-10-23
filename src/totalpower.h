@@ -70,6 +70,7 @@ public:
    MedianIQRHistory m_MedianIQRHistory;
 
 // Public interface : 
+   void calc( float *dynaspec, size_t n_timesteps, size_t n_channels, bool do_dump=false, bool use_rms=true, int offset=0, int ntimes=-1, long int start_time=0 );
    void calc( DynamicSpectrum& dynaspec, bool do_dump=false, bool use_rms=true, int offset=0, int ntimes=-1, long int start_time=0 );
    void calc( CBgFits& dynaspec, bool do_dump=false, bool use_rms=true, int offset=0, int ntimes=-1, long int start_time=0 );
    

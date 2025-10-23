@@ -102,12 +102,12 @@ void TotalPower::ResetFile()
 }
 
 
-void TotalPower::calc( DynamicSpectrum& dynaspec, bool do_dump, bool use_rms, int offset, int ntimes, long int start_time )
+void TotalPower::calc( float *dynaspec, size_t n_timesteps, size_t n_channels, bool do_dump, bool use_rms, int offset, int ntimes, long int start_time )
 {
    if( ntimes <= 0 ){
-      ntimes = dynaspec.get_ntimesteps();
+      ntimes = n_timesteps;
    }
-   int nchan  = dynaspec.get_nchan();
+   int nchan  = n_channels;
  
    // copy current vector to m_PreviousBuffer to still keep it for checking
    // early samples in the new buffer 
@@ -121,8 +121,8 @@ void TotalPower::calc( DynamicSpectrum& dynaspec, bool do_dump, bool use_rms, in
    clear();
 
    TotalPowerRec tmp;
-   int time_size = dynaspec.get_ntimesteps();
-   float* data = dynaspec.data();
+   int time_size = n_timesteps;
+   float* data = dynaspec;
    printf("DEBUG : TotalPower::calc, ntimes = %d, nchan = %d, first values %.2f, %.2f, %.2f\n",ntimes,nchan,data[0],data[1],data[2]);
   
    for(long int t=offset;t<(offset+ntimes);t++){
@@ -173,86 +173,16 @@ void TotalPower::calc( DynamicSpectrum& dynaspec, bool do_dump, bool use_rms, in
       }
       fclose(out_f);
    }
-// exit(0);  
+}
+
+void TotalPower::calc( DynamicSpectrum& dynaspec, bool do_dump, bool use_rms, int offset, int ntimes, long int start_time )
+{
+   calc( dynaspec.data(), dynaspec.get_ntimesteps(), dynaspec.get_nchan(), do_dump, use_rms, offset, ntimes, start_time );
 }
 
 void TotalPower::calc( CBgFits& dynaspec, bool do_dump, bool use_rms, int offset, int ntimes, long int start_time )
 {
-    if( ntimes <= 0 ){
-       ntimes = dynaspec.GetXSize();
-    }
-    int nchan  = dynaspec.GetYSize();
- 
-   // copy current vector to m_PreviousBuffer to still keep it for checking
-   // early samples in the new buffer 
-   if( size() > 0 ){
-      m_PreviousBuffer.clear();  
-      copy(begin(),end(),back_inserter(m_PreviousBuffer));
-      
-      printf("DEBUG : added %d records to previous total power buffer\n",int(size()));
-   }
-
-   clear();
-
-   TotalPowerRec tmp;
-   float* data = dynaspec.get_data();
-   printf("DEBUG : TotalPower::calc, ntimes = %d, nchan = %d, first values %.2f, %.2f, %.2f\n",ntimes,nchan,data[0],data[1],data[2]);
-
-   for(long int t=offset;t<(offset+ntimes);t++){
-      float* ptr = data + nchan*t;      
- 
-      double sum = 0.00;
-      double sum2 = 0.0;
-      int count = 0; // in case some excluded in the future and nchan!=count 
-      for(int ch=0;ch<nchan;ch++){
-        double value = dynaspec.getXY(t,ch);
-        sum += value;
-        sum2 += value*value;
-        count++;
-        if(t==0 && false){printf("\t%.2f\n",value);}
-      }
-      if(t==0 && false){printf("\n");}
-
-      tmp.time_index = start_time + t;
-      double rms = sqrt( sum2/count - (sum/count)*(sum/count) );
-      if( use_rms )
-         tmp.total_power = rms;
-      else 
-         tmp.total_power = sum/nchan; // just to keep consistency and compare to dumpfilfile_float (main_float.cpp in mwafrb/src)
-
-      if(t==0){printf("First total power = %.8f\n",tmp.total_power);}
-      push_back(tmp);
-   }   
-
-   // Sort and calculate MEDIAN and RMSIQR :
-   sorted_total_power.clear();
-   for( auto power : (*this) ){
-      sorted_total_power.push_back(power.total_power);
-   }
-   ::sort( sorted_total_power.begin(), sorted_total_power.end());
-
-   m_Median = sorted_total_power[int(sorted_total_power.size()/2)];
-   int q75= int(sorted_total_power.size()*0.75);
-   int q25= int(sorted_total_power.size()*0.25);
-   m_RMSIQR = ( sorted_total_power[q75] - sorted_total_power[q25] ) / 1.35;
-
-
-
-   // add to history used for getting filtered / smoothed value (stable and excluding spikes)
-   m_MedianIQRHistory.add( m_Median , m_RMSIQR );
-
-   // Log results to a text file (if requested)
-   printf("Double check of first total power = %.8f, median of MEDIANS = %.4f (vs. local median = %.4f), Median of RMSIQRs = %.4f (vs. local rmsiqr = %.4f )\n",(*this)[0].total_power,GetMedianOfMedians(),m_Median,GetMedianOfRMSIQRs(),m_RMSIQR);
-   if( do_dump ){
-//      printf("DEBUG : saving %d total power values to text file\n",int(size()));
-      FILE* out_f = fopen(filename.c_str(),"a+");
-      for(int i=0;i<size();i++){
-         TotalPowerRec& rec = (*this)[i];
-         fprintf(out_f,"%ld %.4f %.8f %.8f %.8f\n",rec.time_index,rec.total_power,GetMedianOfMedians(),GetMedianOfRMSIQRs(),m_Median);
-      }
-      fclose(out_f);
-   }
-// exit(0);  
+    calc( dynaspec.get_data(), dynaspec.GetXSize(), dynaspec.GetYSize(), do_dump, use_rms, offset, ntimes, start_time );
 }
 
 bool TotalPower::is_total_power_ok(DynamicSpectrum& dynaspec, int t, double total_power_threshold )
