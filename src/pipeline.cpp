@@ -20,7 +20,7 @@
 #include <gpu_macros.hpp>
 #include "rfi_flagging.hpp"
 #include "gpu/rfi_flagging_gpu.hpp"
-
+#include "timestep_rfi_flagging.hpp"
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -125,10 +125,9 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
     auto images = imager[gpu_id]->run(xcorr);
    
     if(rfi_flagging > 0){
-        // images.to_cpu();
         std::cout << "Applying RFI flagging..." << std::endl;
-        //flag_rfi_cpu(images, rfi_flagging, 50, false);
         flag_rfi(images, rfi_flagging, true);
+        flag_timestep_rfi(images, rfi_flagging, true);
         clear_flagged_images_gpu(images);
     }
 
