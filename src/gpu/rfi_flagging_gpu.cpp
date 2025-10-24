@@ -189,7 +189,7 @@ __global__ void clear_flagged_images_kernel(Complex<float>*data, unsigned int si
 std::vector<float> compute_images_rms_gpu(Images& images){
     images.to_gpu();
     size_t n_images = images.size();
-    MemoryBuffer<float> rms_vector_mb {n_images, true};
+    MemoryBuffer<float> rms_vector_mb {n_images, MemoryType::DEVICE};
     std::vector<float> rms_vector(n_images);
     struct gpuDeviceProp_t props;
     int gpu_id = -1;

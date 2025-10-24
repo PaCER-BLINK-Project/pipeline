@@ -8,25 +8,16 @@
 class DynamicSpectrum : public MemoryBuffer<float> {
 
     private:
-    size_t n_timesteps {0}, n_frequencies {0}, current_offset {0}, batch_size {0};
+    size_t n_timesteps {0}, n_channels {0}, current_offset {0}, batch_size {0};
     // image pixel coordinates this dynamic spectrum refers to
     
     public:
     int x {0}, y {0};
     
-    DynamicSpectrum(size_t n_timesteps, size_t n_frequencies, size_t batch_size,  int x, int y) : \
-            MemoryBuffer {n_timesteps * n_frequencies}, n_timesteps {n_timesteps}, \
-            n_frequencies {n_frequencies}, x {x}, y {y}, batch_size {batch_size} {
-        if(false){
-            #ifdef __GPU__
-                gpuMemset(this->data(), 0,  sizeof(float) * this->size());
-            #else
-                throw std::runtime_error {"DynamicSpectrum: tried to allocate dynamic "
-                    "spectrum on GPU, but the code was not compiled with GPU support."};
-            #endif
-        }else{
-            std::memset(this->data(), 0, sizeof(float) * this->size());
-        }
+    DynamicSpectrum(size_t n_timesteps, size_t n_channels, size_t batch_size,  int x, int y) : \
+            MemoryBuffer {n_timesteps * n_channels, MemoryType::MANAGED}, n_timesteps {n_timesteps}, \
+            n_channels {n_channels}, x {x}, y {y}, batch_size {batch_size} {
+        std::memset(this->data(), 0, sizeof(float) * this->size());
     }
 
     void add_images(Images& images);
@@ -36,7 +27,7 @@ class DynamicSpectrum : public MemoryBuffer<float> {
     void to_fits_file(std::string filename);
     
     inline int get_ntimesteps(){ return n_timesteps; }
-    inline int get_nchan(){ return n_frequencies; }
+    inline int get_nchannels(){ return n_channels; }
     inline int get_current_offset(){ return current_offset; }
     inline int get_batch_size(){ return batch_size; }
 };

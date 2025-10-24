@@ -95,7 +95,7 @@ std::vector<float> compute_timestep_rms_gpu(Images& images){
     std::cout << "compute_timestep_rms_gpu.." << std::endl;
     images.to_gpu();
     size_t n_images = images.size();
-    MemoryBuffer<float> rms_vector_mb {images.n_intervals, true};
+    MemoryBuffer<float> rms_vector_mb {images.n_intervals, MemoryType::DEVICE};
     std::vector<float> rms_vector(images.n_intervals);
     struct gpuDeviceProp_t props;
     int gpu_id = -1;

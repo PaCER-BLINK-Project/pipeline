@@ -177,7 +177,7 @@ void TotalPower::calc( float *dynaspec, size_t n_timesteps, size_t n_channels, b
 
 void TotalPower::calc( DynamicSpectrum& dynaspec, bool do_dump, bool use_rms, int offset, int ntimes, long int start_time )
 {
-   calc( dynaspec.data(), dynaspec.get_ntimesteps(), dynaspec.get_nchan(), do_dump, use_rms, offset, ntimes, start_time );
+   calc( dynaspec.data(), dynaspec.get_ntimesteps(), dynaspec.get_nchannels(), do_dump, use_rms, offset, ntimes, start_time );
 }
 
 void TotalPower::calc( CBgFits& dynaspec, bool do_dump, bool use_rms, int offset, int ntimes, long int start_time )

@@ -69,11 +69,9 @@ void DynamicSpectrum::add_images(Images& images){
         throw std::runtime_error {"DynamicSpectrum::add_images: tried to add more points than accounted for in dynamic spectrum."};
 
     #ifdef __GPU__
-    if(this->on_gpu() && gpu_support() && num_available_gpus() > 0){
-        images.to_gpu();
+    if(images.on_gpu() && gpu_support() && num_available_gpus() > 0){
         add_images_gpu(images, current_offset, n_timesteps, x, y, this->data());
     }else{
-        images.to_cpu();
         add_images_cpu(images, current_offset, n_timesteps, x, y, this->data());
     }
     #else
@@ -86,7 +84,7 @@ void DynamicSpectrum::to_fits_file(std::string filename){
     FITS fitsImage;
     FITS::HDU hdu;
     this->to_cpu();
-    hdu.set_image(data(), n_timesteps, n_frequencies);    
+    hdu.set_image(data(), n_timesteps, n_channels);    
     fitsImage.add_HDU(hdu);
     fitsImage.to_file(filename);
 }
