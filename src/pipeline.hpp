@@ -73,6 +73,7 @@ namespace blink {
         void run(const Voltages& input, int gpu_id);
         void run(const std::vector<std::shared_ptr<Voltages>>& inputs);
         void add_dynamic_spectrum(std::shared_ptr<DynamicSpectrum> p);
+        bool has_dynamic_spectrum(int x, int y);
         void save_dynamic_spectra();
 
         ~Pipeline() {

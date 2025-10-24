@@ -5,7 +5,6 @@
 #include <images.hpp>
 #include <math.h>
 #include <memory_buffer.hpp>
-#include "../rfi_flagging.hpp"
 
 #define CHECK_RADIUS 50
 #define SELECTION_SIDE (CHECK_RADIUS * 2 + 1)
@@ -22,7 +21,7 @@
 
 
 
-__global__ void compute_images_rms(const Complex<float>*data, unsigned int side_size, unsigned int n_images, float *out_rms){
+__global__ void compute_images_rms_kernel(const Complex<float>*data, unsigned int side_size, unsigned int n_images, float *out_rms){
 
     const unsigned int grid_size {blockDim.x * gridDim.x};
     const unsigned int lane_id {threadIdx.x % warpSize};
@@ -187,7 +186,7 @@ __global__ void clear_flagged_images_kernel(Complex<float>*data, unsigned int si
     @brief: computes a vector of boolean values indicating which of the input images are contaminated
     by RFI. The function uses a high RMS as a signal for bad/corrupted channels.
 */
-void flag_rfi_gpu(Images& images, double rms_threshold){
+std::vector<float> compute_images_rms_gpu(Images& images){
     images.to_gpu();
     size_t n_images = images.size();
     MemoryBuffer<float> rms_vector_mb {n_images, true};
@@ -197,22 +196,12 @@ void flag_rfi_gpu(Images& images, double rms_threshold){
     gpuGetDevice(&gpu_id);
     gpuGetDeviceProperties(&props, gpu_id);
     unsigned int n_blocks = props.multiProcessorCount * 2;
-    compute_images_rms<<<n_blocks, NTHREADS>>>(reinterpret_cast<Complex<float>*>(images.data()),
+    compute_images_rms_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<Complex<float>*>(images.data()),
         static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(n_images), rms_vector_mb.data());
     gpuCheckLastError();
     gpuMemcpy(rms_vector.data(), rms_vector_mb.data(), sizeof(float) * n_images, gpuMemcpyDeviceToHost);
     gpuDeviceSynchronize();
-    float rms = compute_running_rms(rms_vector);
-    // print some stats
-    // std::cout << "flag_rfi - "
-    // "min rms: " << *std::min_element(rms_vector.begin(), rms_vector.end()) << ", "
-    // "max rms: " << *std::max_element(rms_vector.begin(), rms_vector.end()) << ", rms = " << rms <<  std::endl;
-    std::vector<bool> flags (n_images, false);
-    // now compute avg rms of all rms
-    for(size_t i {0}; i < rms_vector.size(); i++){
-        if(rms_vector[i] > rms_threshold * rms) flags[i] = true;
-    }
-    images.set_flags(flags);
+    return rms_vector;
 }
 
 

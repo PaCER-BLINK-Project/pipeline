@@ -3,7 +3,7 @@
 
 #include <images.hpp>
 
-void flag_rfi_gpu(Images& images, double rms_threshold);
+std::vector<float> compute_images_rms_gpu(Images& images);
 
 /*
     Set all flagged images to 0s.
