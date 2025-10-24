@@ -127,6 +127,7 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
     if(rfi_flagging > 0){
         std::cout << "Applying RFI flagging..." << std::endl;
         flag_rfi(images, rfi_flagging, true);
+        clear_flagged_images_gpu(images);
         flag_timestep_rfi(images, rfi_flagging, true);
         clear_flagged_images_gpu(images);
     }
@@ -141,12 +142,6 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         duration<double> ds_dur = duration_cast<duration<double>>(ds_end - ds_start);
         std::cout << "Adding to dynamic spectrum took " << ds_dur.count() << " seconds." << std::endl;
     }
-    //if(rfi_marcin){
-        // determine flags for images in the same time step
-        // process(DynamicSpectra[0], images);
-
-        // clear_flagged_images_gpu(images);
-    //}
 
     if(DynamicSpectra.size() == 0 && !dedisp_engine.is_initialised()){
         std::cout << "Saving images to disk..." << std::endl;

@@ -209,10 +209,12 @@ std::vector<float> compute_images_rms_gpu(Images& images){
 void clear_flagged_images_gpu(Images& images){
     images.to_gpu();
     size_t n_images = images.size();
-    auto flags = images.get_flags();
+    auto& flags = images.get_flags();
     MemoryBuffer<bool> flagged_images {n_images};
-    for(int i {0}; i < n_images; ++i)
+    for(int i {0}; i < n_images; ++i){
         flagged_images[i] = flags[i];
+        flags[i] = false;
+    }
     flagged_images.to_gpu();
     struct gpuDeviceProp_t props;
     int gpu_id = -1;
@@ -223,4 +225,5 @@ void clear_flagged_images_gpu(Images& images){
         static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(n_images), flagged_images.data());
     gpuCheckLastError();
     gpuDeviceSynchronize();
+
 }

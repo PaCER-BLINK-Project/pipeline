@@ -49,13 +49,8 @@ void flag_timestep_rfi(Images& images, double rms_threshold, bool use_iqr){
     "max rms: " << *std::max_element(rms_vector.begin(), rms_vector.end()) << ", "
     "median = " << median_rms_of_rms.first << ", "
     "rms = " << median_rms_of_rms.second <<  std::endl;
-    std::vector<bool> new_flags(images.size(), false);
-    auto existing_flags = images.get_flags();
-    if(existing_flags.size() > 0){
-        std::cout << "flag_timestep_rfi: flags are already there.." << std::endl;
-        for(int i {0}; i < existing_flags.size(); i++)
-            new_flags[i] = existing_flags[i];
-    }
+    auto& flags = images.get_flags();
+    if(flags.size() == 0) flags.resize(images.size(), false);
     
     std::vector<size_t> flagged_ts;
     // now compute avg rms of all rms
@@ -65,7 +60,7 @@ void flag_timestep_rfi(Images& images, double rms_threshold, bool use_iqr){
             // flag all images in the timestep
             std::cout << "flag_timestep_rfi: flagging step " << i << std::endl;
             for(size_t j {0}; j < images.n_channels; j++)
-                new_flags[i * images.n_channels + j] = true;
+                flags[i * images.n_channels + j] = true;
         }
     }
     if(flagged_ts.size() > 4){
@@ -77,8 +72,7 @@ void flag_timestep_rfi(Images& images, double rms_threshold, bool use_iqr){
             // flag all images in the timestep
             std::cout << "flag_timestep_rfi: extra flagging step " << i << std::endl;
             for(size_t j {0}; j < images.n_channels; j++)
-                new_flags[i * images.n_channels + j] = true;
+                flags[i * images.n_channels + j] = true;
         }
     }
-    images.set_flags(new_flags);
 }

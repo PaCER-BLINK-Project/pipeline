@@ -63,10 +63,10 @@ void flag_rfi(Images& images, double rms_threshold, bool use_iqr){
     std::cout << "flag_rfi - "
     "min rms: " << *std::min_element(rms_vector.begin(), rms_vector.end()) << ", "
     "max rms: " << *std::max_element(rms_vector.begin(), rms_vector.end()) << ", rms = " << median_rms_of_rms.second <<  std::endl;
-    std::vector<bool> flags (images.size(), false);
+    auto& flags = images.get_flags();
+    if(flags.size() == 0) flags.resize(images.size(), false);
     // now compute avg rms of all rms
     for(size_t i {0}; i < rms_vector.size(); i++){
         if(rms_vector[i] > median_rms_of_rms.first + rms_threshold * median_rms_of_rms.second) flags[i] = true;
     }
-    images.set_flags(flags);
 }

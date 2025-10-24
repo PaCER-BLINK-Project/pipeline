@@ -41,7 +41,6 @@ namespace {
 
 
     void add_images_gpu(Images& images, size_t current_offset, size_t n_timesteps, int x, int y, float* ds){
-        std::cout << "Running add_images_gpu.." << std::endl;
         size_t n_images {images.size()};
         auto flags = images.get_flags();
         MemoryBuffer<bool> flagged_images {n_images};
@@ -81,10 +80,9 @@ void DynamicSpectrum::add_images(Images& images){
 
 
 void DynamicSpectrum::to_fits_file(std::string filename){
-    FITS fitsImage;
+    FITS fitsImage {filename, FITS::Mode::WRITE};
     FITS::HDU hdu;
-    this->to_cpu();
     hdu.set_image(data(), n_timesteps, n_channels);    
     fitsImage.add_HDU(hdu);
-    fitsImage.to_file(filename);
+    fitsImage.write();
 }
