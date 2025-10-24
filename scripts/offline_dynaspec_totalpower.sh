@@ -17,6 +17,10 @@ function print_run {
 # module use /software/projects/pawsey1154/cdipietrantonio/setonix/2025.08/modules/zen3/gcc/14.2.0/blink-pipeline-gpu/
 module load blink-pipeline-gpu/main
 
+dm=8 # gives 8 x 20ms timesteps 
+if [[ -n "$1" && "$1" != "-" ]]; then
+   dm="$1"
+fi
 
 export LD_LIBRARY_PATH=/software/projects/pawsey1154/msok/github/branches/msok-totalpower/pipeline/build/:$LD_LIBRARY_PATH
 exec_dir=/software/projects/pawsey1154/msok/github/branches/msok-totalpower/pipeline/build/
@@ -33,7 +37,7 @@ print_run srun $exec fits_list
 for total_power_file in `ls *.total_power`
 do
    exclude_ranges_file=${total_power_file%%total_power}exclude_ranges
-   print_run srun ${exec_dir}/exclude_ranges_totalpower $total_power_file -o $exclude_ranges_file
+   print_run srun ${exec_dir}/exclude_ranges_totalpower $total_power_file -o $exclude_ranges_file -D ${dm}
    awk '{printf("%s,",$1)}' ${exclude_ranges_file} > ${exclude_ranges_file}_option
 done
    

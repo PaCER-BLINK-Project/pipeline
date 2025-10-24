@@ -20,6 +20,9 @@ bool   gDebug=false;
 int    gRunningMedianSize=50;
 int    gBorder=10;
 double gDM=-100;
+double gStartFreqMHz = 200;
+double gEndFreqMHz = 230;
+
 
 struct cTotalPower
 {
@@ -152,7 +155,7 @@ double dispersion_delay_ms(double dm, double freq1_mhz, double freq2_mhz )
 
    double delta_t_ms = 4.15 * dm * ( 1.00/(freq1_ghz*freq1_ghz) - 1.00/(freq2_ghz*freq2_ghz) );
 
-   printf("DEBUG : delta_t_ms = %.6f [ms] for %.4f - %.4f MHz range, and dm = %.3f [ps/cm^3]\n",delta_t_ms,freq1_ghz,freq2_ghz,dm);
+   std::cout << "DEBUG : delta_t_ms = " << delta_t_ms << " [ms] for " << freq1_ghz << " - " << freq2_ghz << " GHz range, and DM = " << dm << " [pc/cm^3]" << std::endl;
 
    return delta_t_ms;
 }
@@ -168,7 +171,7 @@ void usage()
 }
 
 void parse_cmdline(int argc, char * argv[]) {
-   char optstring[] = "ho:D:";
+   char optstring[] = "ho:D:s:e:";
    int opt;
         
    while ((opt = getopt(argc, argv, optstring)) != -1) {
@@ -189,6 +192,18 @@ void parse_cmdline(int argc, char * argv[]) {
             }
             break;
 
+         case 's':
+            if( optarg ){
+               gStartFreqMHz = atof( optarg );
+            }
+            break;
+
+         case 'e':
+            if( optarg ){
+               gEndFreqMHz = atof( optarg );
+            }
+            break;
+
 
          default:   
             std::cerr << "Unknown option " << opt << std::endl;
@@ -202,9 +217,10 @@ void print_parameters()
     std::cout << "############################################################################################" << std::endl;
     std::cout << "PARAMETERS :" << std::endl;
     std::cout << "############################################################################################" << std::endl;
-    std::cout << "Input file    = %s" << infile << std::endl;
-    std::cout << "Output file   = %s" << outfile  << std::endl;
-    std::cout << "DM            = %.4f " << gDM << " [pc/cm^3] " << std::endl;
+    std::cout << "Input file    = " << infile << std::endl;
+    std::cout << "Output file   = " << outfile  << std::endl;
+    std::cout << "DM            = " << gDM << " [pc/cm^3] " << std::endl;
+    std::cout << "Frequency range : " << gStartFreqMHz << " - " << gEndFreqMHz << " [MHz] " << std::endl;
     std::cout << "############################################################################################" << std::endl;
 }
 
@@ -223,9 +239,9 @@ int main(int argc,char* argv[])
   if ( gDM > 0 ){
      // overwrite defaults only when DM provided :
      double timeres_ms = 20.00; // ms
-     double disp_delay_ms = dispersion_delay_ms( gDM, 200, 230 );  
+     double disp_delay_ms = dispersion_delay_ms( gDM, gStartFreqMHz, gEndFreqMHz );  
      gBorder = int(round(disp_delay_ms/timeres_ms));
-     printf("DEBUG : border calculated from dispersive delay = %.4f [ms] is %d timesteps\n",timeres_ms,gBorder);
+     std::cout << "DEBUG : border calculated from dispersive delay = " << timeres_ms << " [ms] is " << gBorder << " timesteps" << std::endl;
   }
   
   find_exclude_ranges( total_power_vec, outfile.c_str(), gRunningMedianSize, gBorder );
