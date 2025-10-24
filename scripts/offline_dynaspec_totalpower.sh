@@ -24,8 +24,8 @@ fi
 
 export LD_LIBRARY_PATH=/software/projects/pawsey1154/msok/github/branches/msok-totalpower/pipeline/build/:$LD_LIBRARY_PATH
 exec_dir=/software/projects/pawsey1154/msok/github/branches/msok-totalpower/pipeline/build/
-if [[ -n "$1" && "$1" != "-" ]]; then
-   exec_dir="$1"
+if [[ -n "$2" && "$2" != "-" ]]; then
+   exec_dir="$2"
 fi
 
 exec=${exec_dir}/test_totalpower
