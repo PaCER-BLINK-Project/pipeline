@@ -106,40 +106,54 @@ void find_exclude_ranges( vector<cTotalPower>& total_power_vec, const char* outf
             if( last_range_end>=0 && (i-last_range_end)<border ){
                // if small break between ranges - extend the current range :
                start_range = last_range_start;
-               std::cout << "Extending range started at " << start_range << std::endl;
+               std::cout << "\tExtending range started at " << start_range << std::endl;
             }else{
-               // is there a completed range:
                if( last_range_start>=0 && last_range_end>=0 ){
                   // save current range :
-                  last_range_start -= border; // a bit agressive border
-                  last_range_start = std::max(last_range_start,0);
-                  std::cout << "\tExclusion range = " << last_range_start << " - " << last_range_end << " (using border = " << border << " timesteps) " << std::endl;
+//                  last_range_start -= border; // a bit agressive border
+//                  last_range_end += border;
+                  std::cout << "\tExclusion range = " << last_range_start << " - " << last_range_end << std::endl;
                   ofile << last_range_start << "-" << last_range_end << std::endl;
                   last_range_start = -1;
                   last_range_end = -1;
                   count_exclude_range++;
                }
-               start_range = i; 
                
+               start_range = i; 
                std::cout << "Started new range at i = " << i << std::endl;
             }
          }
+         
+         last_range_end = i; // set current end of the range
       }else{
-         // power below exclusion threshold :
-         if( start_range >= 0 && (i-start_range)>border ){
-            std::cout << "Reached end of range started at " << start_range << " end of range at i = " << i << std::endl;
-            // started range and reached end of exclusion range :
-            int t_start = total_power_vec[start_range].timeindex;            
-            int t_end = total_power_vec[i-1].timeindex;
+         if( start_range >= 0 ){
+            std::cout << "\tValue dropped below threshold at i = " << i << std::endl;
+         }
+         if( start_range >= 0 && (i-last_range_end)>border ){
+            std::cout << "\tReached end of range started at " << start_range << " end of range at i = " << i << std::endl;
+            int t_start = std::max(total_power_vec[start_range].timeindex - border,(long int)0);            
+            int t_end = total_power_vec[i-1].timeindex; // was + border - but shouldn't be needed !!! right ???
             last_range_start = t_start;
             last_range_end = t_end;
             start_range = -1;
          }
       }
-   }
 
+      if( last_range_start>=0 && last_range_end>=0 ){ // TOO MUCH : && (i-last_range_end)>=border ){
+          // save current range :
+// TOO MUCH : 
+//          last_range_start -= border;
+//          last_range_end -= border;
+          std::cout << "\tExclusion range = " << last_range_start << " - " << last_range_end << std::endl;
+          ofile << last_range_start << "-" << last_range_end << std::endl;
+          last_range_start = -1;
+          last_range_end = -1;
+          count_exclude_range++;
+      }
+
+   }
+   
    // finished the loop, and now check oif there is any range started, but not finished yet:
-//   if( last_range_start>=0 && last_range_end>=0 ){
    if( start_range >= 0 ){
       // save current range :
       last_range_start = start_range - border;
@@ -151,6 +165,7 @@ void find_exclude_ranges( vector<cTotalPower>& total_power_vec, const char* outf
       last_range_end = -1;
       count_exclude_range++;
    }
+
    
    ofile.close();
 
