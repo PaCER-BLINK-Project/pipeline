@@ -101,7 +101,7 @@ void find_exclude_ranges( vector<cTotalPower>& total_power_vec, const char* outf
    int last_range_start = -1, last_range_end = -1;
    int count_exclude_range=0;
    for(int i=running_median_size;i<n_points;i++){  // skips first 50 (number of points in the running median) - so before running median / iqr stabilise 
-      if( total_power_vec[i].total_power > total_power_vec[i].up ){
+      if( total_power_vec[i].total_power > total_power_vec[i].up || total_power_vec[i].total_power < total_power_vec[i].down ){
          if( start_range < 0 ){
             if( last_range_end>=0 && (i-last_range_end)<border ){
                // if small break between ranges - extend the current range :
