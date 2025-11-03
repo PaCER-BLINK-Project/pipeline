@@ -14,21 +14,27 @@
 using namespace std;
 
 string list="fits_list";
+bool gUseRMS=true;
 
 void usage()
 {
    printf("test_totalpower fits_list\n\n\n");
+   printf("-p : use actual total power (default RMS of total power)\n");
    exit(0);
 }
 
 void parse_cmdline(int argc, char * argv[]) {
-   char optstring[] = "h";
+   char optstring[] = "hp";
    int opt;
         
    while ((opt = getopt(argc, argv, optstring)) != -1) {
       switch (opt) {
          case 'h':
             usage();
+            break;
+
+         case 'p':
+            gUseRMS = false;
             break;
 
 
@@ -45,6 +51,7 @@ void print_parameters()
     printf("PARAMETERS :\n");
     printf("############################################################################################\n");
     printf("List file    = %s\n",list.c_str());
+    printf("Use RMS      = %d\n",gUseRMS);
     printf("############################################################################################\n");
 }
 
@@ -105,7 +112,7 @@ int main(int argc,char* argv[])
      int blocks = int( fits.GetXSize()/ntimes );
      int offset = 0; 
      for( int b=0;b<blocks;b++){
-        total_power_history.calc( fits, true, true, offset, ntimes, start_time );
+        total_power_history.calc( fits, true, gUseRMS, offset, ntimes, start_time );
         offset += ntimes;
      }
 //     start_time += fits.GetXSize();          
