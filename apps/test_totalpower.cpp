@@ -80,8 +80,6 @@ int main(int argc,char* argv[])
      cdelt1 = atof( pKey->Value.c_str() );
   }
 
-  DynamicSpectrum dynaspec( first_fits.GetXSize() , first_fits.GetYSize(), 1, 0, 0  );
-
   TotalPower total_power_history(cdelt1);
 
   int ntimes=100;
