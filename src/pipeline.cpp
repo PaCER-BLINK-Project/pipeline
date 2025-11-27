@@ -159,27 +159,34 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
     }
 }
 
-void blink::Pipeline::add_dynamic_spectrum(std::shared_ptr<DynamicSpectrum> p)
-{
-   DynamicSpectra.push_back(p);
+void blink::Pipeline::add_dynamic_spectrum(std::shared_ptr<DynamicSpectrum> p){
+    DynamicSpectra.push_back(p);
 }
 
-void blink::Pipeline::save_dynamic_spectra() 
-{
-   for( auto ds : DynamicSpectra ){
-      char filename[2048];
-      sprintf(filename,"%s/dynamic_spectrum_%05d_%05d.fits",output_dir.c_str(),ds->x,ds->y);
-      
-      ds->to_fits_file(filename);
-      
-      cout << "Saved dynamic spectrum " << filename << endl;      
-   }
+
+void blink::Pipeline::save_dynamic_spectra(){
+    for(auto ds : DynamicSpectra){
+        std::stringstream filename;
+        filename << output_dir << "/dynamic_spectrum_" << std::setw(5) << ds->x \
+            << std::setw(0) << "_" << std::setw(5) << ds->y << std::setw(0);
+        if(postfix.length() > 0) filename << "_" << postfix;
+        filename << ".fits";
+        ds->to_fits_file(filename.str());
+        
+        std::cout << "Saved dynamic spectrum " << filename.str() << endl;      
+    }
 }
 
-bool blink::Pipeline::has_dynamic_spectrum(int x, int y)
-{
-   int count = std::count_if(std::begin(DynamicSpectra),std::end(DynamicSpectra),[x,y]( std::shared_ptr<DynamicSpectrum> dynaspec ){ if(x==dynaspec->x && y==dynaspec->y ){ return true; }else{return false;} } );
-   
-   return ( count > 0 );
+bool blink::Pipeline::has_dynamic_spectrum(int x, int y){
+    int count = std::count_if(std::begin(DynamicSpectra), std::end(DynamicSpectra), 
+        [x,y]( std::shared_ptr<DynamicSpectrum> dynaspec){
+            if(x == dynaspec->x && y == dynaspec->y){
+                return true;
+            }else{
+                return false;
+            }
+        });
+
+    return ( count > 0 );
 }
 
