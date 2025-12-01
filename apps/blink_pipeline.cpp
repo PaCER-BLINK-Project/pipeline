@@ -75,6 +75,7 @@ struct ProgramOptions {
     float rfi_flagging;
     vector<array<int,2>> ds_pixels;
     int n_antennas;
+    int cands_per_batch;
 
 };
 
@@ -108,7 +109,7 @@ int main(int argc, char **argv){
     print_program_options(opts);
     int n_timesteps {static_cast<int>(1.0 / opts.integrationTime)}; // TODO: generalise to number of time steps
     blink::dedispersion::Dedispersion dedisp_engine {opts.dm_list, opts.ImageSize,
-        n_timesteps, 2 * n_timesteps, opts.SNR, opts.outputDir, opts.postfix};
+        n_timesteps, 2 * n_timesteps, opts.SNR, opts.cands_per_batch, opts.outputDir, opts.postfix};
 
     // TODO : replace all these options to just ProgramOptions& opts - not doing it now !
     blink::Pipeline pipeline  {
@@ -238,6 +239,7 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-f <threshold> enable RFI/bad channel flagging by discarding all images whose noise level is <threshold> times the average rms.\n"
     "\t-d <x,y> compute the dynamic spectrum for the (x, y) pixel.\n"
     "\t-R <n_antennas> : override the number of antennas (128)\n"
+    "\t-T <cands threshold>: maximum number of candidates per batch that will be accepted (default: all candidates, no filtering)\n"
     "\t"
     << std::endl;
 }
@@ -266,7 +268,7 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.seconds_offset = 0;
     opts.rfi_flagging = -1.0f;
     opts.n_antennas = -1;
-    
+    opts.cands_per_batch = -1;
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
@@ -275,6 +277,10 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
+            case 'T' : {
+                opts.cands_per_batch = atoi(optarg);
+                break;
+            }
             case 'R' : {
                 opts.n_antennas = atoi(optarg);
                 break;
