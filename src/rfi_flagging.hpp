@@ -7,7 +7,7 @@
 #include <limits>
 #include <images.hpp>
 
-void flag_rfi(Images& images, double rms_threshold, bool use_iqr);
+size_t flag_rfi(Images& images, double rms_threshold, bool use_iqr);
 
 
 

@@ -40,6 +40,10 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     imager.resize(num_gpus);
     mapping.resize(num_gpus);
     cal_sol.resize(num_gpus);
+    history_rms.resize(num_gpus);
+    good_pixels.resize(num_gpus);
+
+    history_length = 5000;
 
     // set imager parameters according to options :    
     // no if here - assuming always true :
@@ -126,10 +130,17 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
    
     if(rfi_flagging > 0){
         std::cout << "Applying RFI flagging..." << std::endl;
-        flag_rfi(images, rfi_flagging, true);
-        clear_flagged_images_gpu(images);
-        flag_timestep_rfi(images, rfi_flagging, true);
-        clear_flagged_images_gpu(images);
+        size_t flagged_images {0};
+        flagged_images += flag_rfi(images, rfi_flagging, true);
+        if(flagged_images) clear_flagged_images_gpu(images, good_pixels[gpu_id]);
+        flagged_images += flag_timestep_using_history(images, history_rms[gpu_id], history_length);
+        if(flagged_images) clear_flagged_images_gpu(images, good_pixels[gpu_id]);
+        flagged_images += flag_timestep_rfi(images, rfi_flagging, true);
+        if(flagged_images) clear_flagged_images_gpu(images, good_pixels[gpu_id]);
+
+        // if(flagged_images == 0){
+        //     update_good_pixels_gpu(images, good_pixels[gpu_id]);
+        // }
     }
 
     if(DynamicSpectra.size() > 0) {
@@ -167,8 +178,9 @@ void blink::Pipeline::add_dynamic_spectrum(std::shared_ptr<DynamicSpectrum> p){
 void blink::Pipeline::save_dynamic_spectra(){
     for(auto ds : DynamicSpectra){
         std::stringstream filename;
-        filename << output_dir << "/dynamic_spectrum_" << std::setw(5) << ds->x \
-            << std::setw(0) << "_" << std::setw(5) << ds->y << std::setw(0);
+        filename << output_dir << "/dynamic_spectrum_" << std::setfill('0') \
+            << std::setw(5) << ds->x << std::setw(0) << "_" \
+            << std::setw(5) << ds->y << std::setw(0);
         if(postfix.length() > 0) filename << "_" << postfix;
         filename << ".fits";
         ds->to_fits_file(filename.str());

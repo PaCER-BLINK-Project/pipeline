@@ -5,6 +5,9 @@
 #include <images.hpp>
 #include <math.h>
 #include <memory_buffer.hpp>
+#include <cstdlib> 
+#include <ctime> 
+
 
 #define CHECK_RADIUS 50
 #define SELECTION_SIDE (CHECK_RADIUS * 2 + 1)
@@ -165,17 +168,31 @@ __global__ void compute_images_rms_kernel(const Complex<float>*data, unsigned in
 
 
 
-__global__ void clear_flagged_images_kernel(Complex<float>*data, unsigned int side_size, unsigned int n_images, bool *flagged){
+__global__ void clear_flagged_images_kernel(Complex<float>*data, unsigned int side_size, unsigned int n_images,
+        unsigned int ok_image, int seed1, int seed2, float *good_pixels, bool *flagged){
+
     const unsigned int grid_size {blockDim.x * gridDim.x};
     const unsigned int image_size {side_size * side_size};
 
     for(size_t image_id {blockIdx.x}; image_id < n_images; image_id += gridDim.x){
-        if(!flagged[image_id]) continue;
+        if(!flagged[image_id]) continue;      
 
         Complex<float>* image {data + image_id * image_size};
-        for(unsigned int i {threadIdx.x}; i < image_size; i += blockDim.x){
-            image[i].real = 0.0f;
-            // image value is not used, so avoid the assignment operation.
+        
+        if(good_pixels){
+            for(unsigned int i {threadIdx.x}; i < image_size; i += blockDim.x) 
+                image[i].real = (good_pixels[(i + image_id * i + seed1) % n_images] + good_pixels[(i + image_id * i * seed2) % n_images]) * 0.75;
+
+        } else if(ok_image > 0u){
+            Complex<float>* image_src {data + ok_image * image_size};
+            for(unsigned int i {threadIdx.x}; i < image_size; i += blockDim.x){
+                size_t idx1 {(i + image_id * i + seed1) % image_size};
+                size_t idx2 {(i + image_id * i + seed2) % image_size};                
+                image[i].real = (image_src[idx1].real * 0.5 + image_src[idx2].real * 0.5) * 1.2;
+            }
+                
+        }else{
+            for(unsigned int i {threadIdx.x}; i < image_size; i += blockDim.x) image[i].real = 0.0f; 
         }
     }
 }
@@ -206,13 +223,15 @@ std::vector<float> compute_images_rms_gpu(Images& images){
 
 
 
-void clear_flagged_images_gpu(Images& images){
+void clear_flagged_images_gpu(Images& images, MemoryBuffer<float>& good_pixels){
     images.to_gpu();
     size_t n_images = images.size();
     auto& flags = images.get_flags();
     MemoryBuffer<bool> flagged_images {n_images};
+    unsigned int ok_image {0u};
     for(int i {0}; i < n_images; ++i){
         flagged_images[i] = flags[i];
+        if(!flags[i] && ok_image == 0u) ok_image = i;
         flags[i] = false;
     }
     flagged_images.to_gpu();
@@ -222,8 +241,36 @@ void clear_flagged_images_gpu(Images& images){
     gpuGetDeviceProperties(&props, gpu_id);
     unsigned int n_blocks = props.multiProcessorCount * 2;
     clear_flagged_images_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<Complex<float>*>(images.data()),
-        static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(n_images), flagged_images.data());
+        static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(n_images), ok_image, rand(), rand(),
+        good_pixels.data(), flagged_images.data());
     gpuCheckLastError();
     gpuDeviceSynchronize();
+}
 
+
+__global__
+void update_good_pixels_kernel(Complex<float>*images, unsigned int side_size, unsigned int n_images, float *good_pixels){
+    const unsigned int grid_size {blockDim.x * gridDim.x};
+    const unsigned int image_size {side_size * side_size};
+    size_t x {side_size / 2};
+    size_t y {x};
+
+    for(size_t thread_id {blockIdx.x * blockDim.x * threadIdx.x}; thread_id < n_images; thread_id += grid_size){       
+        Complex<float>* image_px {images + thread_id * image_size + y * side_size + x};
+        good_pixels[thread_id] = image_px->real;
+    }
+}
+
+
+void update_good_pixels_gpu(Images& images, MemoryBuffer<float>& good_pixels){
+    if(!good_pixels) good_pixels.allocate(images.size(), MemoryType::DEVICE);
+    struct gpuDeviceProp_t props;
+    int gpu_id = -1;
+    gpuGetDevice(&gpu_id);
+    gpuGetDeviceProperties(&props, gpu_id);
+    unsigned int n_blocks = props.multiProcessorCount * 2;
+    update_good_pixels_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<Complex<float>*>(images.data()),
+        static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(images.size()), good_pixels.data());
+    gpuCheckLastError();
+    gpuDeviceSynchronize();
 }

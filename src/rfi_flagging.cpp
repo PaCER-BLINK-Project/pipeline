@@ -45,7 +45,7 @@ std::vector<float> compute_images_rms_cpu(Images& images){
     @brief: computes a vector of boolean values indicating which of the input images are contaminated
     by RFI. The function uses a high RMS as a signal for bad/corrupted channels.
 */
-void flag_rfi(Images& images, double rms_threshold, bool use_iqr){
+size_t flag_rfi(Images& images, double rms_threshold, bool use_iqr){
     std::vector<float> rms_vector;
     #ifdef __GPU__
     if(gpu_support() && num_available_gpus() > 0 && images.on_gpu()){
@@ -66,7 +66,12 @@ void flag_rfi(Images& images, double rms_threshold, bool use_iqr){
     auto& flags = images.get_flags();
     if(flags.size() == 0) flags.resize(images.size(), false);
     // now compute avg rms of all rms
-    for(size_t i {0}; i < rms_vector.size(); i++){
-        if(rms_vector[i] > median_rms_of_rms.first + rms_threshold * median_rms_of_rms.second) flags[i] = true;
+    size_t count {0u};
+    for(size_t i {0u}; i < rms_vector.size(); i++){
+        if(rms_vector[i] > median_rms_of_rms.first + rms_threshold * median_rms_of_rms.second){
+            flags[i] = true;
+            count++;
+        }
     }
+    return count;
 }

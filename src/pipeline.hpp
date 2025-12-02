@@ -4,9 +4,9 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <deque>
 #include <astroio.hpp>
 #include <utils.hpp>
-#include <memory>
 #include <calibration.hpp>
 #include <gpu/pacer_imager_hip.h>
 #include <dedispersion.hpp>
@@ -57,8 +57,10 @@ namespace blink {
         // flagging.
         float rfi_flagging {-1.0};
         int num_gpus;
-        
-        
+        std::vector<std::deque<float>> history_rms;
+        size_t history_length;
+        std::vector<MemoryBuffer<float>> good_pixels;
+
         public:        
         Dedispersion dedisp_engine;
 
