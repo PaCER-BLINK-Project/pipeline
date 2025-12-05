@@ -57,9 +57,12 @@ namespace blink {
         // flagging.
         float rfi_flagging {-1.0};
         int num_gpus;
-        std::vector<std::deque<float>> history_rms;
-        size_t history_length;
+        std::vector<std::deque<std::pair<float, float>>> history_rms;
+        int history_length {500};
+        size_t good_pixels_age {0u};
         std::vector<MemoryBuffer<float>> good_pixels;
+        std::vector<std::pair<unsigned long long, unsigned long long>> flagged_images_statistics;
+
 
         public:        
         Dedispersion dedisp_engine;
@@ -77,6 +80,7 @@ namespace blink {
         void add_dynamic_spectrum(std::shared_ptr<DynamicSpectrum> p);
         bool has_dynamic_spectrum(int x, int y);
         void save_dynamic_spectra();
+        void finalise();
 
         ~Pipeline() {
             for(CPacerImagerHip* p : imager) delete p;

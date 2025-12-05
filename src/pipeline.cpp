@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <string>
 #include <unistd.h>
@@ -42,8 +43,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     cal_sol.resize(num_gpus);
     history_rms.resize(num_gpus);
     good_pixels.resize(num_gpus);
-
-    history_length = 5000;
+    flagged_images_statistics.resize(num_gpus);
 
     // set imager parameters according to options :    
     // no if here - assuming always true :
@@ -71,6 +71,8 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
         if(reorder) mapping[i] = mapping[0];
     }
     for(int i {0}; i < num_gpus; i++){
+        flagged_images_statistics[i].first = 0u;
+        flagged_images_statistics[i].second = 0u;
         gpuSetDevice(i);
         imager[i] = new CPacerImagerHip {metadataFile, imageSize, flagged_antennas, averageImages,
             pol_to_image, oversampling_factor, MinUV, szWeighting.c_str()};
@@ -130,17 +132,32 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
    
     if(rfi_flagging > 0){
         std::cout << "Applying RFI flagging..." << std::endl;
-        size_t flagged_images {0};
-        flagged_images += flag_rfi(images, rfi_flagging, true);
-        if(flagged_images) clear_flagged_images_gpu(images, good_pixels[gpu_id]);
-        flagged_images += flag_timestep_using_history(images, history_rms[gpu_id], history_length);
-        if(flagged_images) clear_flagged_images_gpu(images, good_pixels[gpu_id]);
-        flagged_images += flag_timestep_rfi(images, rfi_flagging, true);
-        if(flagged_images) clear_flagged_images_gpu(images, good_pixels[gpu_id]);
+        size_t total_flagged_images {0u}, currently_flagged {0u};
+        int iter {0};
+        const int max_iter {10};
+        total_flagged_images += flag_timestep_rfi(images, rfi_flagging, history_rms[gpu_id], history_length);
+        clear_flagged_images_gpu(images, good_pixels[gpu_id]);
+        
+        do{
+            currently_flagged = 0u;
+            currently_flagged += flag_rfi(images, rfi_flagging, rfi_flagging);
+            clear_flagged_images_gpu(images, good_pixels[gpu_id]);
+            currently_flagged += flag_timestep_rfi(images, rfi_flagging, history_rms[gpu_id], -1);
+            clear_flagged_images_gpu(images, good_pixels[gpu_id]);
+            total_flagged_images += currently_flagged;
+        }while(currently_flagged > 0 && iter++ < max_iter);
+        
+        if(total_flagged_images == 0 && (!good_pixels[gpu_id] || good_pixels_age > 10u)){
+            std::cout << "initialising / updating good_pixels for GPU " << gpu_id << " at start time " << obsInfo.startTime << std::endl;
+            update_good_pixels_gpu(images, good_pixels[gpu_id]);
+            good_pixels_age = 0u;
+        }
 
-        // if(flagged_images == 0){
-        //     update_good_pixels_gpu(images, good_pixels[gpu_id]);
-        // }
+        flagged_images_statistics[gpu_id].first += images.size();
+        for(auto f : images.get_flags())
+            if(f) flagged_images_statistics[gpu_id].second += 1u;
+        
+        good_pixels_age += 1u;
     }
 
     if(DynamicSpectra.size() > 0) {
@@ -202,3 +219,15 @@ bool blink::Pipeline::has_dynamic_spectrum(int x, int y){
     return ( count > 0 );
 }
 
+// TODO: add print statistics at the end
+
+void blink::Pipeline::finalise(){
+    unsigned long long total_images {0};
+    unsigned long long total_flagged_images {0};
+    for(int i {0}; i < num_gpus; i++){
+        total_flagged_images += flagged_images_statistics[i].second;
+        total_images += flagged_images_statistics[i].first;
+    }
+    double flagged_perc {(static_cast<double>(total_flagged_images) / total_images * 100.0)};
+    std::cout << "Percentange of flagged images: " << flagged_perc << std::endl; 
+}

@@ -3,7 +3,7 @@
 
 #include <images.hpp>
 
-std::vector<float> compute_images_rms_gpu(Images& images);
+void  compute_images_mean_rms_gpu(Images& images, std::vector<float>& mean, std::vector<float>& rms);
 
 /*
     Set all flagged images to 0s.

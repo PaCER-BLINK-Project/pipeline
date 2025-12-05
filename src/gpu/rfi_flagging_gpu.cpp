@@ -24,7 +24,7 @@
 
 
 
-__global__ void compute_images_rms_kernel(const Complex<float>*data, unsigned int side_size, unsigned int n_images, float *out_rms){
+__global__ void compute_images_rms_kernel(const Complex<float>*data, unsigned int side_size, unsigned int n_images, float *out_rms, float *out_mean){
 
     const unsigned int grid_size {blockDim.x * gridDim.x};
     const unsigned int lane_id {threadIdx.x % warpSize};
@@ -160,6 +160,7 @@ __global__ void compute_images_rms_kernel(const Complex<float>*data, unsigned in
                 float final_mean {sum / count};
                 float final_stdev {sqrt(sum2 / count - final_mean*final_mean)};
                 out_rms[image_id] = final_stdev;
+                out_mean[image_id] = final_mean;
             }
         }
         __syncthreads();
@@ -169,7 +170,7 @@ __global__ void compute_images_rms_kernel(const Complex<float>*data, unsigned in
 
 
 __global__ void clear_flagged_images_kernel(Complex<float>*data, unsigned int side_size, unsigned int n_images,
-        unsigned int ok_image, int seed1, int seed2, float *good_pixels, bool *flagged){
+        unsigned int ok_image, int seed1, int seed2, float *good_pixels, size_t good_pixels_size, bool *flagged){
 
     const unsigned int grid_size {blockDim.x * gridDim.x};
     const unsigned int image_size {side_size * side_size};
@@ -181,14 +182,13 @@ __global__ void clear_flagged_images_kernel(Complex<float>*data, unsigned int si
         
         if(good_pixels){
             for(unsigned int i {threadIdx.x}; i < image_size; i += blockDim.x) 
-                image[i].real = (good_pixels[(i + image_id * i + seed1) % n_images] + good_pixels[(i + image_id * i * seed2) % n_images]) * 0.75;
-
+                image[i].real = good_pixels[(i + image_id + seed1 + image_id * seed2) % image_size];
         } else if(ok_image > 0u){
             Complex<float>* image_src {data + ok_image * image_size};
             for(unsigned int i {threadIdx.x}; i < image_size; i += blockDim.x){
-                size_t idx1 {(i + image_id * i + seed1) % image_size};
-                size_t idx2 {(i + image_id * i + seed2) % image_size};                
-                image[i].real = (image_src[idx1].real * 0.5 + image_src[idx2].real * 0.5) * 1.2;
+                size_t idx1 {(image_id * i * seed1) % image_size};
+                size_t idx2 {(image_id * i * seed2) % image_size};                
+                image[i].real = (image_src[idx1].real * 0.5 + image_src[idx2].real * 0.5);
             }
                 
         }else{
@@ -203,37 +203,41 @@ __global__ void clear_flagged_images_kernel(Complex<float>*data, unsigned int si
     @brief: computes a vector of boolean values indicating which of the input images are contaminated
     by RFI. The function uses a high RMS as a signal for bad/corrupted channels.
 */
-std::vector<float> compute_images_rms_gpu(Images& images){
+void compute_images_mean_rms_gpu(Images& images, std::vector<float>& mean, std::vector<float>& rms){
     images.to_gpu();
     size_t n_images = images.size();
     MemoryBuffer<float> rms_vector_mb {n_images, MemoryType::DEVICE};
-    std::vector<float> rms_vector(n_images);
+    MemoryBuffer<float> mean_vector_mb {n_images, MemoryType::DEVICE};
+    rms.resize(n_images);
+    mean.resize(n_images);
     struct gpuDeviceProp_t props;
     int gpu_id = -1;
     gpuGetDevice(&gpu_id);
     gpuGetDeviceProperties(&props, gpu_id);
     unsigned int n_blocks = props.multiProcessorCount * 2;
     compute_images_rms_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<Complex<float>*>(images.data()),
-        static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(n_images), rms_vector_mb.data());
+        static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(n_images), rms_vector_mb.data(), mean_vector_mb.data());
     gpuCheckLastError();
-    gpuMemcpy(rms_vector.data(), rms_vector_mb.data(), sizeof(float) * n_images, gpuMemcpyDeviceToHost);
+    gpuMemcpy(rms.data(), rms_vector_mb.data(), sizeof(float) * n_images, gpuMemcpyDeviceToHost);
+    gpuMemcpy(mean.data(), mean_vector_mb.data(), sizeof(float) * n_images, gpuMemcpyDeviceToHost);
     gpuDeviceSynchronize();
-    return rms_vector;
 }
 
 
 
 void clear_flagged_images_gpu(Images& images, MemoryBuffer<float>& good_pixels){
+    std::cout << "clean_flagged - good_pixels? " << good_pixels.size() << std::endl;
     images.to_gpu();
     size_t n_images = images.size();
     auto& flags = images.get_flags();
     MemoryBuffer<bool> flagged_images {n_images};
-    unsigned int ok_image {0u};
+    size_t ok_image {0u};
     for(int i {0}; i < n_images; ++i){
+        if(ok_image == 0u && !flags[i]) ok_image = i;
         flagged_images[i] = flags[i];
-        if(!flags[i] && ok_image == 0u) ok_image = i;
         flags[i] = false;
     }
+
     flagged_images.to_gpu();
     struct gpuDeviceProp_t props;
     int gpu_id = -1;
@@ -242,35 +246,57 @@ void clear_flagged_images_gpu(Images& images, MemoryBuffer<float>& good_pixels){
     unsigned int n_blocks = props.multiProcessorCount * 2;
     clear_flagged_images_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<Complex<float>*>(images.data()),
         static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(n_images), ok_image, rand(), rand(),
-        good_pixels.data(), flagged_images.data());
+        good_pixels.data(), good_pixels.size(), flagged_images.data());
     gpuCheckLastError();
     gpuDeviceSynchronize();
 }
 
 
 __global__
-void update_good_pixels_kernel(Complex<float>*images, unsigned int side_size, unsigned int n_images, float *good_pixels){
+void update_good_pixels_kernel(Complex<float>*images, unsigned int side_size,
+        unsigned int n_channels, unsigned int n_intervals, bool* flags, float *good_pixels){
+
     const unsigned int grid_size {blockDim.x * gridDim.x};
     const unsigned int image_size {side_size * side_size};
-    size_t x {side_size / 2};
-    size_t y {x};
+    // use image at central frequency and time interval - they are all good anyway
+    size_t image_idx {0u};
 
-    for(size_t thread_id {blockIdx.x * blockDim.x * threadIdx.x}; thread_id < n_images; thread_id += grid_size){       
-        Complex<float>* image_px {images + thread_id * image_size + y * side_size + x};
+    for(size_t i {0u}; i < n_intervals; i++){
+        for(size_t c {7u}; c < (n_channels - 7u); c++){
+            image_idx = i * n_channels + c;
+            if(!flags[image_idx]) break;
+        }
+        if(!flags[image_idx]) break;
+    }
+
+    for(size_t thread_id {blockIdx.x * blockDim.x + threadIdx.x}; thread_id < image_size; thread_id += grid_size){
+        Complex<float>* image_px {images + image_idx * image_size + thread_id};
         good_pixels[thread_id] = image_px->real;
     }
 }
 
 
 void update_good_pixels_gpu(Images& images, MemoryBuffer<float>& good_pixels){
-    if(!good_pixels) good_pixels.allocate(images.size(), MemoryType::DEVICE);
+    size_t n_pixels {images.side_size * images.side_size};
+    if(!good_pixels){
+        good_pixels.allocate(n_pixels, MemoryType::DEVICE);
+    }
+    auto& flags = images.get_flags();
+    MemoryBuffer<bool> flagged_images {images.size()};
+
+    for(size_t i {0u}; i < images.size(); ++i){
+        flagged_images[i] = flags[i];
+    }
+
+    flagged_images.to_gpu();
     struct gpuDeviceProp_t props;
     int gpu_id = -1;
     gpuGetDevice(&gpu_id);
     gpuGetDeviceProperties(&props, gpu_id);
     unsigned int n_blocks = props.multiProcessorCount * 2;
     update_good_pixels_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<Complex<float>*>(images.data()),
-        static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(images.size()), good_pixels.data());
+        static_cast<unsigned int>(images.side_size), static_cast<unsigned int>(images.n_channels),
+        static_cast<unsigned int>(images.n_intervals), flagged_images.data(), good_pixels.data());
     gpuCheckLastError();
     gpuDeviceSynchronize();
 }

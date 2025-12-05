@@ -177,6 +177,7 @@ int main(int argc, char **argv){
         pipeline.dedisp_engine.process_buffer();
     }
     if(dynamic_spectrum_mode_enabled) pipeline.save_dynamic_spectra();
+    pipeline.finalise();
 }
 
 std::vector<float> get_frequencies(const std::vector<DatFile>& one_second, int chnls_to_avg){
