@@ -9,7 +9,7 @@
 #include <images.hpp>
 
 
-size_t flag_rfi(Images& images, double threshold, std::deque<std::pair<float, float>>& history, int history_length);
+size_t flag_rfi(Images& images, float threshold, std::deque<std::pair<float, float>>& history, int history_length, float history_threshold);
 
 
 template <typename T>

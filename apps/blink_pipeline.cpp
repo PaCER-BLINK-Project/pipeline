@@ -72,7 +72,8 @@ struct ProgramOptions {
     std::string postfix;
     string dm_list_string;
     vector<float> dm_list;
-    float rfi_flagging;
+    float rfi_block_threshold;
+    float rfi_history_threshold;
     vector<array<int,2>> ds_pixels;
     int n_antennas;
     int cands_per_batch;
@@ -118,7 +119,7 @@ int main(int argc, char **argv){
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages, opts.pol_to_image,
         opts.gFlaggedAntennasList, opts.bChangePhaseCentre, opts.ra_dec[0], opts.ra_dec[1], dedisp_engine,
-        opts.rfi_flagging, opts.outputDir, opts.postfix
+        opts.rfi_block_threshold, opts.rfi_history_threshold, opts.outputDir, opts.postfix
     };
    
     auto observation = parse_mwa_dat_files(opts.input_directory, opts.seconds_offset, opts.seconds_count);
@@ -237,7 +238,9 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-X : starting second to process, expressed as number of seconds from the start of the observation. Default is 0.\n"
     "\t-Q : number of seconds of observation to process. Default is all, starting from the offset (-M).\n"
     "\t-p <postfix>: a string to optionally append to the end of output file names.\n"
-    "\t-f <threshold> enable RFI/bad channel flagging by discarding all images whose noise level is <threshold> times the average rms.\n"
+    "\t-f <threshold>[,<history threshold>] enable RFI flagging by discarding all images in a "
+    "FFT batch whose noise level is <threshold> times the average rms.\n"
+    "\t\tOptionally, enable history thresholding by specifying a second threshold, larger than the first one. (e.g. -f5,15)\n"
     "\t-d <x,y> compute the dynamic spectrum for the (x, y) pixel.\n"
     "\t-R <n_antennas> : override the number of antennas (128)\n"
     "\t-T <cands threshold>: maximum number of candidates per batch that will be accepted (default: all candidates, no filtering)\n"
@@ -267,7 +270,8 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.oversampling_factor = 2.0f;
     opts.seconds_count = -1;
     opts.seconds_offset = 0;
-    opts.rfi_flagging = -1.0f;
+    opts.rfi_block_threshold = -1;
+    opts.rfi_history_threshold = -1;
     opts.n_antennas = -1;
     opts.cands_per_batch = -1;
     // default debug levels :
@@ -291,7 +295,13 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
                 break;
             }
             case 'f': {
-                opts.rfi_flagging = atof(optarg);
+                auto items = ::tokenize_string(optarg, ',');
+                if(items.size() == 1)
+                    opts.rfi_block_threshold = std::stof(items[0]);
+                else {
+                    opts.rfi_block_threshold = std::stof(items[0]);
+                    opts.rfi_history_threshold = std::stof(items[1]);
+                }
                 break;
             }
             case 'd': {

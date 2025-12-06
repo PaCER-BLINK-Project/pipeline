@@ -55,7 +55,9 @@ namespace blink {
         std::vector<int> szFlaggedAntennasList;
         // RFI flagging threshold. A negative value disables
         // flagging.
-        float rfi_flagging {-1.0};
+        float rfi_block_threshold {-1};
+        float rfi_history_threshold {-1};
+        
         int num_gpus;
         std::vector<std::deque<std::pair<float, float>>> history_rms;
         int history_length {500};
@@ -68,12 +70,13 @@ namespace blink {
         Dedispersion dedisp_engine;
 
         Pipeline(unsigned int nChannelsToAvg, double integrationTime, bool reorder, bool calibrate, std::string solutions_file,
-                  int imageSize, std::string metadataFile, float oversampling_factor, std::string szAntennaPositionsFile,
-                  double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
-                  double FOV_degrees, bool averageImages, Polarization pol_to_image,
-                  vector<int>& flagged_antennas,bool change_phase_centre, double ra_deg, double dec_deg,
-                  Dedispersion& dedisp_engine, float rfi_flagging, std::string& output_dir, std::string& postfix
-                );
+                int imageSize, std::string metadataFile, float oversampling_factor, std::string szAntennaPositionsFile,
+                double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
+                double FOV_degrees, bool averageImages, Polarization pol_to_image,
+                vector<int>& flagged_antennas,bool change_phase_centre, double ra_deg, double dec_deg,
+                Dedispersion& dedisp_engine, float rfi_block_threshold, float rfi_history_threshold,
+                std::string& output_dir, std::string& postfix
+            );
         
         void run(const Voltages& input, int gpu_id);
         void run(const std::vector<std::shared_ptr<Voltages>>& inputs);

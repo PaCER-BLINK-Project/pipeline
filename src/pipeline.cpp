@@ -30,7 +30,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     std::string szAntennaPositionsFile, double minUV, bool printImageStats, std::string szWeighting, 
     std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, Polarization pol_to_image,
     vector<int>& flagged_antennas, bool change_phase_centre, double ra_deg, double dec_deg, Dedispersion& dedisp_engine,
-    float rfi_flagging, std::string& output_dir, std::string& postfix) : dedisp_engine {dedisp_engine} {
+    float rfi_block_threshold, float rfi_history_threshold, std::string& output_dir, std::string& postfix) : dedisp_engine {dedisp_engine} {
 
     gpuGetDeviceCount(&num_gpus);
     if(num_gpus == 0){
@@ -61,7 +61,8 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->output_dir = output_dir;
     this->postfix = postfix;
     this->bZenithImage = false;
-    this->rfi_flagging = rfi_flagging;
+    this->rfi_block_threshold = rfi_block_threshold;
+    this->rfi_history_threshold = rfi_history_threshold;
 
     if(calibrate) cal_sol[0] = CalibrationSolutions::from_file(this->calibration_solutions_file);
     if(reorder) mapping[0] = get_visibilities_mapping(this->MetaDataFile);
@@ -129,20 +130,15 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
     std::cout << "Running imager.." << std::endl;
     auto images = imager[gpu_id]->run(xcorr);
    
-    if(rfi_flagging > 0){
+    if(rfi_block_threshold > 0){
         std::cout << "Applying RFI flagging..." << std::endl;
         size_t total_flagged_images {0u}, currently_flagged {0u};
         int iter {0};
         const int max_iter {10};
-        //total_flagged_images += flag_timestep_rfi(images, rfi_flagging, history_rms[gpu_id], history_length);
-        //clear_flagged_images_gpu(images, good_pixels[gpu_id]);
-        
         do{
-            currently_flagged = 0u;
-            currently_flagged += flag_rfi(images, rfi_flagging, history_rms[gpu_id], -1);
+            currently_flagged = flag_rfi(images, rfi_block_threshold, history_rms[gpu_id], history_length, rfi_history_threshold);
+            std::cout << "currently_flagged = " << currently_flagged << std::endl;
             clear_flagged_images_gpu(images, good_pixels[gpu_id]);
-            //currently_flagged += flag_timestep_rfi(images, rfi_flagging, history_rms[gpu_id], -1);
-            //clear_flagged_images_gpu(images, good_pixels[gpu_id]);
             total_flagged_images += currently_flagged;
         }while(currently_flagged > 0 && iter++ < max_iter);
         
@@ -153,9 +149,7 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         }
 
         flagged_images_statistics[gpu_id].first += images.size();
-        for(auto f : images.get_flags())
-            if(f) flagged_images_statistics[gpu_id].second += 1u;
-        
+        flagged_images_statistics[gpu_id].second += total_flagged_images;
         good_pixels_age += 1u;
     }
 
@@ -228,5 +222,6 @@ void blink::Pipeline::finalise(){
         total_images += flagged_images_statistics[i].first;
     }
     double flagged_perc {(static_cast<double>(total_flagged_images) / total_images * 100.0)};
-    std::cout << "Percentange of flagged images: " << flagged_perc << std::endl; 
+    std::cout << "Flagged images: " << total_flagged_images << "/" << total_images << \
+        " (" << std::setprecision(3) << flagged_perc << "%)" << std::endl; 
 }

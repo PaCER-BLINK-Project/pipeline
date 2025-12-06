@@ -102,7 +102,7 @@ void compute_channel_mean_rms_cpu(std::vector<float>& images_mean, std::vector<f
 
 
 
-size_t flag_values(std::vector<float>& values, std::vector<bool>& flags, double threshold, std::string name){
+size_t flag_values(std::vector<float>& values, std::vector<bool>& flags, float threshold, std::string name){
     std::pair<float, float> median_rms_of_values = compute_iqr_rms(values);
 
     // print some stats
@@ -136,7 +136,7 @@ size_t flag_values(std::vector<float>& values, std::vector<bool>& flags, double 
 
 
 
-void flag_timestep_values(std::vector<float>& values, std::set<unsigned int>& flagged_ts, double threshold, std::string name){
+void flag_timestep_values(std::vector<float>& values, std::set<unsigned int>& flagged_ts, float threshold, std::string name){
     std::pair<float, float> median_rms_of_values = compute_iqr_rms(values);
     float min_value {*std::min_element(values.begin(), values.end())};
     std::cout << "flag_timestep_value - " << name << " - "
@@ -171,7 +171,7 @@ void flag_timestep_values(std::vector<float>& values, std::set<unsigned int>& fl
 
 
 
-void flag_values_with_history(std::vector<float>& values, std::vector<float>& history, std::set<unsigned int>& flagged, double threshold){
+void flag_values_with_history(std::vector<float>& values, std::vector<float>& history, std::set<unsigned int>& flagged, float threshold){
     std::pair<float, float> median_rms_of_history = compute_iqr_rms(history);
     std::cout << "flag_timestep_rfi_with_history - "
         "min rms: " << *std::min_element(history.begin(), history.end()) << ", "
@@ -199,7 +199,7 @@ void flag_values_with_history(std::vector<float>& values, std::vector<float>& hi
     @brief: computes a vector of boolean values indicating which of the input images are contaminated
     by RFI. The function uses a high RMS as a signal for bad/corrupted channels.
 */
-size_t flag_rfi(Images& images, double threshold, std::deque<std::pair<float, float>>& history, int history_length){
+size_t flag_rfi(Images& images, float threshold, std::deque<std::pair<float, float>>& history, int history_length, float history_threshold){
 
     std::vector<float> images_rms;
     std::vector<float> images_mean;
@@ -242,8 +242,8 @@ size_t flag_rfi(Images& images, double threshold, std::deque<std::pair<float, fl
     flag_timestep_values(channel_mean_of_mean, flagged_ch, threshold, "mean");
     flag_timestep_values(channel_mean_of_rms, flagged_ch, threshold, "rms");
 
-    /*
-    if(history_length >= 0){
+
+    if(history_threshold >= 0){
         if(static_cast<int>(history.size()) < history_length){
             for(size_t i {0}; i < timestep_mean_of_mean.size(); i++) {
                 history.push_back({timestep_mean_of_mean[i], timestep_mean_of_rms[i]});
@@ -255,17 +255,16 @@ size_t flag_rfi(Images& images, double threshold, std::deque<std::pair<float, fl
                 history_mean[i] = history[i].first;
                 history_rms[i] = history[i].second;
             }
-            flag_values_with_history(timestep_mean_of_mean, history_mean, flagged_ts, threshold);
-            flag_values_with_history(timestep_mean_of_rms, history_rms, flagged_ts, threshold);
+            flag_values_with_history(timestep_mean_of_mean, history_mean, flagged_ts, history_threshold);
+            flag_values_with_history(timestep_mean_of_rms, history_rms, flagged_ts, history_threshold);
             
             for(size_t i {0}; i < timestep_mean_of_mean.size(); i++) {
                 history.push_back({timestep_mean_of_mean[i], timestep_mean_of_rms[i]});
                 history.pop_front();
             }
-        }        
-    }*/
+        }
+    }
 
-    
     for(size_t j : flagged_ch){
         for(size_t i {0}; i < images.n_intervals; i++){
             flags[i * images.n_channels + j] = true;
