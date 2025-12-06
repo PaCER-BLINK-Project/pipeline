@@ -4,11 +4,12 @@
 #include <vector>
 #include <algorithm>
 #include <numeric>
+#include <deque>
 #include <limits>
 #include <images.hpp>
 
-size_t flag_rfi(Images& images, double mean_threshold, double rms_threshold);
 
+size_t flag_rfi(Images& images, double threshold, std::deque<std::pair<float, float>>& history, int history_length);
 
 
 template <typename T>

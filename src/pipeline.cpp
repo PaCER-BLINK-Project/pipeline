@@ -21,7 +21,6 @@
 #include <gpu_macros.hpp>
 #include "rfi_flagging.hpp"
 #include "gpu/rfi_flagging_gpu.hpp"
-#include "timestep_rfi_flagging.hpp"
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -135,15 +134,15 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         size_t total_flagged_images {0u}, currently_flagged {0u};
         int iter {0};
         const int max_iter {10};
-        total_flagged_images += flag_timestep_rfi(images, rfi_flagging, history_rms[gpu_id], history_length);
-        clear_flagged_images_gpu(images, good_pixels[gpu_id]);
+        //total_flagged_images += flag_timestep_rfi(images, rfi_flagging, history_rms[gpu_id], history_length);
+        //clear_flagged_images_gpu(images, good_pixels[gpu_id]);
         
         do{
             currently_flagged = 0u;
-            currently_flagged += flag_rfi(images, rfi_flagging, rfi_flagging);
+            currently_flagged += flag_rfi(images, rfi_flagging, history_rms[gpu_id], -1);
             clear_flagged_images_gpu(images, good_pixels[gpu_id]);
-            currently_flagged += flag_timestep_rfi(images, rfi_flagging, history_rms[gpu_id], -1);
-            clear_flagged_images_gpu(images, good_pixels[gpu_id]);
+            //currently_flagged += flag_timestep_rfi(images, rfi_flagging, history_rms[gpu_id], -1);
+            //clear_flagged_images_gpu(images, good_pixels[gpu_id]);
             total_flagged_images += currently_flagged;
         }while(currently_flagged > 0 && iter++ < max_iter);
         
