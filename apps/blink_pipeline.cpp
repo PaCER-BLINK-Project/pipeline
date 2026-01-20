@@ -77,6 +77,7 @@ struct ProgramOptions {
     vector<array<int,2>> ds_pixels;
     int n_antennas;
     int cands_per_batch;
+    bool long_exposure;
 
 };
 
@@ -119,7 +120,7 @@ int main(int argc, char **argv){
         opts.szAntennaPositionsFile, opts.MinUV, opts.bPrintImageStatistics, opts.szWeighting,
         opts.outputDir, opts.bZenithImage, opts.FOV_degrees, opts.averageImages, opts.pol_to_image,
         opts.gFlaggedAntennasList, opts.bChangePhaseCentre, opts.ra_dec[0], opts.ra_dec[1], dedisp_engine,
-        opts.rfi_block_threshold, opts.rfi_history_threshold, opts.outputDir, opts.postfix
+        opts.rfi_block_threshold, opts.rfi_history_threshold, opts.long_exposure, opts.outputDir, opts.postfix
     };
    
     auto observation = parse_mwa_dat_files(opts.input_directory, opts.seconds_offset, opts.seconds_count);
@@ -178,7 +179,7 @@ int main(int argc, char **argv){
         pipeline.dedisp_engine.process_buffer();
     }
     if(dynamic_spectrum_mode_enabled) pipeline.save_dynamic_spectra();
-    pipeline.finalise();
+    pipeline.finalise(observation[0][0].second);
 }
 
 std::vector<float> get_frequencies(const std::vector<DatFile>& one_second, int chnls_to_avg){
@@ -244,6 +245,8 @@ void print_help(std::string exec_name, ProgramOptions& opts ){
     "\t-d <x,y> compute the dynamic spectrum for the (x, y) pixel.\n"
     "\t-R <n_antennas> : override the number of antennas (128)\n"
     "\t-T <cands threshold>: maximum number of candidates per batch that will be accepted (default: all candidates, no filtering)\n"
+    "\t-L enable long exposure mode, where visibilities of all timesteps are gridded on the same grid, and only\n"
+        "\t\timaged at the end of the pipeline execution.\n"
     "\t"
     << std::endl;
 }
@@ -274,14 +277,20 @@ void parse_program_options(int argc, char** argv, ProgramOptions& opts){
     opts.rfi_history_threshold = -1;
     opts.n_antennas = -1;
     opts.cands_per_batch = -1;
+    opts.long_exposure = false;
     // default debug levels :
     CPacerImager::SetFileLevel(SAVE_FILES_FINAL);
     CPacerImager::SetDebugLevel(IMAGER_WARNING_LEVEL);
 
-    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:p:f:d:R:T:";
+    const char *options = "rt:c:o:a:M:Zi:s:F:n:v:w:V:C:A:b:uP:D:S:E:O:X:Q:I:p:f:d:R:T:L";
     int current_opt;
     while((current_opt = getopt(argc, argv, options)) != - 1){
         switch(current_opt){
+            case 'L' : {
+                opts.long_exposure = true;
+                opts.averageImages = true;
+                break;
+            }
             case 'T' : {
                 opts.cands_per_batch = atoi(optarg);
                 break;

@@ -31,7 +31,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     std::string szAntennaPositionsFile, double minUV, bool printImageStats, std::string szWeighting, 
     std::string outputDir, bool bZenithImage, double FOV_degrees, bool averageImages, Polarization pol_to_image,
     vector<int>& flagged_antennas, bool change_phase_centre, double ra_deg, double dec_deg, Dedispersion& dedisp_engine,
-    float rfi_block_threshold, float rfi_history_threshold, std::string& output_dir, std::string& postfix) : dedisp_engine {dedisp_engine} {
+    float rfi_block_threshold, float rfi_history_threshold, bool long_exposure, std::string& output_dir, std::string& postfix) : dedisp_engine {dedisp_engine} {
 
     gpuGetDeviceCount(&num_gpus);
     if(num_gpus == 0){
@@ -64,6 +64,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
     this->bZenithImage = false;
     this->rfi_block_threshold = rfi_block_threshold;
     this->rfi_history_threshold = rfi_history_threshold;
+    this->long_exposure = long_exposure;
 
     if(calibrate) cal_sol[0] = CalibrationSolutions::from_file(this->calibration_solutions_file);
     if(reorder) mapping[0] = get_visibilities_mapping(this->MetaDataFile);
@@ -128,56 +129,61 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         apply_solutions(xcorr, cal_sol[gpu_id], obsInfo.coarse_channel_index);
     }
 
-    std::cout << "Running imager.." << std::endl;
-    auto images = imager[gpu_id]->run(xcorr);
-   
-    if(rfi_block_threshold > 0){
-        std::cout << "Applying RFI flagging..." << std::endl;
-        size_t total_flagged_images {0u}, currently_flagged {0u};
-        int iter {0};
-        const int max_iter {10};
-        do{
-            currently_flagged = flag_rfi(images, rfi_block_threshold, history_rms[gpu_id], history_length, rfi_history_threshold);
-            std::cout << "currently_flagged = " << currently_flagged << std::endl;
-            clear_flagged_images_gpu(images, good_pixels[gpu_id]);
-            total_flagged_images += currently_flagged;
-        }while(currently_flagged > 0 && iter++ < max_iter);
-        
-        if(total_flagged_images == 0 && (!good_pixels[gpu_id] || good_pixels_age > 10u)){
-            std::cout << "initialising / updating good_pixels for GPU " << gpu_id << " at start time " << obsInfo.startTime << std::endl;
-            update_good_pixels_gpu(images, good_pixels[gpu_id]);
-            good_pixels_age = 0u;
+    if(long_exposure){
+        std::cout << "Gridding visibilities.." << std::endl;
+        imager[gpu_id]->grid(xcorr);
+    }else{
+        std::cout << "Running imager.." << std::endl;
+        auto images = imager[gpu_id]->run(xcorr);
+    
+        if(rfi_block_threshold > 0){
+            std::cout << "Applying RFI flagging..." << std::endl;
+            size_t total_flagged_images {0u}, currently_flagged {0u};
+            int iter {0};
+            const int max_iter {10};
+            do{
+                currently_flagged = flag_rfi(images, rfi_block_threshold, history_rms[gpu_id], history_length, rfi_history_threshold);
+                std::cout << "currently_flagged = " << currently_flagged << std::endl;
+                clear_flagged_images_gpu(images, good_pixels[gpu_id]);
+                total_flagged_images += currently_flagged;
+            }while(currently_flagged > 0 && iter++ < max_iter);
+            
+            if(total_flagged_images == 0 && (!good_pixels[gpu_id] || good_pixels_age > 10u)){
+                std::cout << "initialising / updating good_pixels for GPU " << gpu_id << " at start time " << obsInfo.startTime << std::endl;
+                update_good_pixels_gpu(images, good_pixels[gpu_id]);
+                good_pixels_age = 0u;
+            }
+
+            flagged_images_statistics[gpu_id].first += images.size();
+            flagged_images_statistics[gpu_id].second += total_flagged_images;
+            good_pixels_age += 1u;
         }
 
-        flagged_images_statistics[gpu_id].first += images.size();
-        flagged_images_statistics[gpu_id].second += total_flagged_images;
-        good_pixels_age += 1u;
-    }
-
-    if(DynamicSpectra.size() > 0) {
-        std::cout << "Adding images to dynamic spectra.." << std::endl;
-        high_resolution_clock::time_point ds_start = high_resolution_clock::now();
-        for( auto ds : DynamicSpectra ){
-           ds->add_images(images);
+        if(DynamicSpectra.size() > 0) {
+            std::cout << "Adding images to dynamic spectra.." << std::endl;
+            high_resolution_clock::time_point ds_start = high_resolution_clock::now();
+            for( auto ds : DynamicSpectra ){
+            ds->add_images(images);
+            }
+            high_resolution_clock::time_point ds_end = high_resolution_clock::now();
+            duration<double> ds_dur = duration_cast<duration<double>>(ds_end - ds_start);
+            std::cout << "Adding to dynamic spectrum took " << ds_dur.count() << " seconds." << std::endl;
         }
-        high_resolution_clock::time_point ds_end = high_resolution_clock::now();
-        duration<double> ds_dur = duration_cast<duration<double>>(ds_end - ds_start);
-        std::cout << "Adding to dynamic spectrum took " << ds_dur.count() << " seconds." << std::endl;
-    }
 
-    if(DynamicSpectra.size() == 0 && !dedisp_engine.is_initialised()){
-        std::cout << "Saving images to disk..." << std::endl;
-        images.to_fits_files(output_dir);
-    }
+        if(DynamicSpectra.size() == 0 && !dedisp_engine.is_initialised()){
+            std::cout << "Saving images to disk..." << std::endl;
+            images.to_fits_files(output_dir);
+        }
 
-    if(dedisp_engine.is_initialised()){
-        images.to_gpu();
-        int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.n_channels - 1;
-        high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();
-        dedisp_engine.compute_partial_dedispersion_gpu(images, top_freq_idx);
-        high_resolution_clock::time_point dedisp_end = high_resolution_clock::now();
-        duration<double> dedisp_dur = duration_cast<duration<double>>(dedisp_end-dedisp_start);
-        std::cout << "Dedispersion took " << dedisp_dur.count() << " seconds." << std::endl;
+        if(dedisp_engine.is_initialised()){
+            images.to_gpu();
+            int top_freq_idx = (obsInfo.coarse_channel_index + 1) * images.n_channels - 1;
+            high_resolution_clock::time_point dedisp_start = high_resolution_clock::now();
+            dedisp_engine.compute_partial_dedispersion_gpu(images, top_freq_idx);
+            high_resolution_clock::time_point dedisp_end = high_resolution_clock::now();
+            duration<double> dedisp_dur = duration_cast<duration<double>>(dedisp_end-dedisp_start);
+            std::cout << "Dedispersion took " << dedisp_dur.count() << " seconds." << std::endl;
+        }
     }
 }
 
@@ -215,14 +221,46 @@ bool blink::Pipeline::has_dynamic_spectrum(int x, int y){
 
 // TODO: add print statistics at the end
 
-void blink::Pipeline::finalise(){
-    unsigned long long total_images {0};
-    unsigned long long total_flagged_images {0};
-    for(int i {0}; i < num_gpus; i++){
-        total_flagged_images += flagged_images_statistics[i].second;
-        total_images += flagged_images_statistics[i].first;
+void blink::Pipeline::finalise(ObservationInfo obs_info){
+    
+    if(rfi_block_threshold > 0){
+        unsigned long long total_images {0};
+        unsigned long long total_flagged_images {0};
+        for(int i {0}; i < num_gpus; i++){
+            total_flagged_images += flagged_images_statistics[i].second;
+            total_images += flagged_images_statistics[i].first;
+        }
+        double flagged_perc {(static_cast<double>(total_flagged_images) / total_images * 100.0)};
+        std::cout << "Flagged images: " << total_flagged_images << "/" << total_images << \
+            " (" << std::setprecision(3) << flagged_perc << "%)" << std::endl; 
     }
-    double flagged_perc {(static_cast<double>(total_flagged_images) / total_images * 100.0)};
-    std::cout << "Flagged images: " << total_flagged_images << "/" << total_images << \
-        " (" << std::setprecision(3) << flagged_perc << "%)" << std::endl; 
+
+    if(long_exposure){
+        MemoryBuffer<std::complex<float>> avg_image_mb;
+        unsigned int side_size;
+        double ra, dec, pix_ra, pix_dec;
+        for(int gid {0}; gid < num_gpus; gid++){
+            gpuSetDevice(gid);
+            auto images = imager[gid]->image(obs_info);
+            side_size = images.side_size;
+            ra = images.ra_deg;
+            dec = images.dec_deg;
+            pix_ra = images.pixscale_ra;
+            pix_dec = images.pixscale_dec;
+            if(!avg_image_mb){
+                avg_image_mb.allocate(images.image_size());
+                memset(avg_image_mb.data(), 0, sizeof(std::complex<float>) * images.image_size());
+            }
+            images.to_cpu();
+            for(size_t px {0}; px < images.image_size(); ++px)
+                avg_image_mb[px] += images.data()[px];
+        }
+        for(size_t px {0}; px < side_size * side_size; ++px)
+            avg_image_mb[px] /= num_gpus;
+
+        Images final_image = Images(std::move(avg_image_mb), obs_info, 1, 1, side_size, ra, dec, pix_ra, pix_dec);
+        std::cout << "Saving long exposure image to disk..." << std::endl;
+        final_image.to_fits_files(output_dir);
+        
+    }
 }

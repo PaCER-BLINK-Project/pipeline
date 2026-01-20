@@ -64,7 +64,7 @@ namespace blink {
         size_t good_pixels_age {0u};
         std::vector<MemoryBuffer<float>> good_pixels;
         std::vector<std::pair<unsigned long long, unsigned long long>> flagged_images_statistics;
-
+        bool long_exposure;
 
         public:        
         Dedispersion dedisp_engine;
@@ -74,7 +74,7 @@ namespace blink {
                 double minUV, bool printImageStats, std::string szWeighting, std::string outputDir, bool bZenithImage,
                 double FOV_degrees, bool averageImages, Polarization pol_to_image,
                 vector<int>& flagged_antennas,bool change_phase_centre, double ra_deg, double dec_deg,
-                Dedispersion& dedisp_engine, float rfi_block_threshold, float rfi_history_threshold,
+                Dedispersion& dedisp_engine, float rfi_block_threshold, float rfi_history_threshold, bool long_exposure,
                 std::string& output_dir, std::string& postfix
             );
         
@@ -83,7 +83,7 @@ namespace blink {
         void add_dynamic_spectrum(std::shared_ptr<DynamicSpectrum> p);
         bool has_dynamic_spectrum(int x, int y);
         void save_dynamic_spectra();
-        void finalise();
+        void finalise(ObservationInfo obs_info);
 
         ~Pipeline() {
             for(CPacerImagerHip* p : imager) delete p;
