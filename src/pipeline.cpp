@@ -77,7 +77,7 @@ blink::Pipeline::Pipeline(unsigned int nChannelsToAvg, double integrationTime, b
         flagged_images_statistics[i].second = 0u;
         gpuSetDevice(i);
         imager[i] = new CPacerImagerHip {metadataFile, imageSize, flagged_antennas, averageImages,
-            pol_to_image, oversampling_factor, MinUV, std::numeric_limits<double>::infinity(), szWeighting.c_str()};
+            pol_to_image, oversampling_factor, MinUV, szWeighting.c_str()};
         if(change_phase_centre) imager[i]->m_MetaData.set_phase_centre(ra_deg, dec_deg);
         mapping[i].to_gpu();
         cal_sol[i].to_gpu();
