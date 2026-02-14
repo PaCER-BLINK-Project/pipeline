@@ -82,7 +82,8 @@ void DynamicSpectrum::add_images(Images& images){
 void DynamicSpectrum::to_fits_file(std::string filename){
     FITS fitsImage {filename, FITS::Mode::WRITE};
     FITS::HDU hdu;
-    hdu.set_image(data(), n_timesteps, n_channels);    
+    hdu.set_image(data(), n_timesteps, n_channels);
+    hdu.set_dynspec_wcs_keywords(freq_start, delta_freq, 0.00, delta_time);
     fitsImage.add_HDU(hdu);
     fitsImage.write();
 }
