@@ -83,7 +83,23 @@ void DynamicSpectrum::to_fits_file(std::string filename){
     FITS fitsImage {filename, FITS::Mode::WRITE};
     FITS::HDU hdu;
     hdu.set_image(data(), n_timesteps, n_channels);
-    hdu.set_dynspec_wcs_keywords(freq_start, delta_freq, 0.00, delta_time);
+    // hdu.set_dynspec_wcs_keywords(freq_start, delta_freq, 0.00, delta_time);
+    
+    // add keywords specific to dynamic spectrum:
+    std::string empty_string;   
+    hdu.add_keyword(std::string("CTYPE2"),std::string("FREQUENCY"),empty_string);
+    hdu.add_keyword(std::string("CUNIT2"),std::string("MHz"),empty_string);
+    hdu.add_keyword(std::string("CRPIX2"),std::string("1"),empty_string);
+    hdu.add_keyword(std::string("CRVAL2"),freq_start,empty_string);
+    hdu.add_keyword(std::string("CDELT2"),delta_freq,empty_string);
+   
+    hdu.add_keyword(std::string("CTYPE1"),std::string("TIME"),empty_string);
+    hdu.add_keyword(std::string("CUNIT1"),std::string("sec"),empty_string);
+    hdu.add_keyword(std::string("CRPIX1"),1.00,empty_string);
+    hdu.add_keyword(std::string("CRVAL1"),0.00,empty_string);
+    hdu.add_keyword(std::string("CDELT1"),delta_time,empty_string);
+    hdu.add_keyword(std::string("INTTIME"),delta_time,empty_string);
+    
     fitsImage.add_HDU(hdu);
     fitsImage.write();
 }
