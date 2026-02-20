@@ -134,7 +134,10 @@ int main(int argc, char **argv){
                frequencies_list.size() - 1, n_timesteps, ds_pixel[0], ds_pixel[1]);
            if( pipeline.has_dynamic_spectrum( ds_pixel[0], ds_pixel[1] ) ){
               std::cout << "Duplicate pixel " << ds_pixel[0] << "," << ds_pixel[1] << " skipped" << endl;
-           }else{                   
+           }else{           
+              pDynamicSpectrum->set_freq_start(frequencies_list[0]);
+              pDynamicSpectrum->set_delta_freq(frequencies_list[1]-frequencies_list[0]);
+              pDynamicSpectrum->set_delta_time(opts.integrationTime);        
               pipeline.add_dynamic_spectrum(pDynamicSpectrum);           
               std::cout << "Added dynamic spectrum for pixel " << ds_pixel[0] << "," << ds_pixel[1] << endl;
            }
