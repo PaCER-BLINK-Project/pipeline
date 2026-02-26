@@ -113,7 +113,6 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
     unsigned int nIntegrationSteps {static_cast<unsigned int>(integration_time / obsInfo.timeResolution)};
 
     std::cout << "Correlating voltages (OBSID = " << obsInfo.id << ", Coarse Channel = " << obsInfo.coarseChannel << ") .." << std::endl;
-
     high_resolution_clock::time_point corr_start = high_resolution_clock::now();
     auto xcorr = cross_correlation(input, channels_to_avg);
     high_resolution_clock::time_point corr_end = high_resolution_clock::now();
@@ -128,9 +127,14 @@ void blink::Pipeline::run(const Voltages& input, int gpu_id){
         std::cout << "Calibration is being applied in the pipeline ( coarse channel index = " << obsInfo.coarse_channel_index << ")." << std::endl;
         apply_solutions(xcorr, cal_sol[gpu_id], obsInfo.coarse_channel_index);
     }
-
+    std::stringstream ss;
+    ss << "xcorr_" << obsInfo.startTime << "_" << obsInfo.coarseChannel << ".bin";
+    
+    xcorr.dump(ss.str());
+    xcorr.to_gpu();
     if(long_exposure){
         std::cout << "Gridding visibilities.." << std::endl;
+        
         imager[gpu_id]->grid(xcorr);
     }else{
         std::cout << "Running imager.." << std::endl;
