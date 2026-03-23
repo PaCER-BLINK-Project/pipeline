@@ -13,11 +13,11 @@
 #define SELECTION_SIDE (CHECK_RADIUS * 2 + 1)
 #define RMS_THRESHOLD 4
 
-#define NTHREADS 1024
+#define NTHREADS 1024u
 #ifdef __NVCC__
-#define WARPSIZE 32
+#define WARPSIZE 32u
 #else
-#define WARPSIZE 64
+#define WARPSIZE 64u
 #endif
 #define NWARPS (NTHREADS / WARPSIZE)
 
@@ -55,7 +55,7 @@ __global__ void compute_images_rms_kernel(const Complex<float>*data, unsigned in
             sum2 += val*val;
             centre_pixels[i] = val;
         }
-        for(unsigned int i {warpSize / 2}; i >= 1; i /= 2){
+        for(unsigned int i {warpSize / 2u}; i >= 1; i /= 2){
             float up_sum = __gpu_shfl_down(sum, i);
             float up_sum2 = __gpu_shfl_down(sum2, i);
             if(lane_id < i){
@@ -79,7 +79,7 @@ __global__ void compute_images_rms_kernel(const Complex<float>*data, unsigned in
             #ifdef __NVCC__
             __syncwarp();
             #endif
-            for(unsigned int i {NWARPS / 2}; i >= 1; i /= 2){
+            for(unsigned int i {NWARPS / 2u}; i >= 1; i /= 2){
                 float up_sum = __gpu_shfl_down(sum, i, NWARPS);
                 float up_sum2 = __gpu_shfl_down(sum2, i, NWARPS);
                 if(lane_id < i){
@@ -115,7 +115,7 @@ __global__ void compute_images_rms_kernel(const Complex<float>*data, unsigned in
             }
         }
         // Step 2: compute first pass RMS estimation with warp-wide reduction
-        for(unsigned int i {warpSize / 2}; i >= 1; i /= 2){
+        for(unsigned int i {warpSize / 2u}; i >= 1; i /= 2){
             float up_sum = __gpu_shfl_down(sum, i);
             float up_sum2 = __gpu_shfl_down(sum2, i);
             unsigned int up_count = __gpu_shfl_down(count, i);
@@ -143,7 +143,7 @@ __global__ void compute_images_rms_kernel(const Complex<float>*data, unsigned in
             #ifdef __NVCC__
             __syncwarp();
             #endif
-            for(unsigned int i {NWARPS / 2}; i >= 1; i /= 2){
+            for(unsigned int i {NWARPS / 2u}; i >= 1; i /= 2){
                 float up_sum = __gpu_shfl_down(sum, i, NWARPS);
                 float up_sum2 = __gpu_shfl_down(sum2, i, NWARPS);
                 unsigned int up_count = __gpu_shfl_down(count, i, NWARPS);
